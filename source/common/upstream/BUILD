@@ -125,7 +125,7 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "edf_scheduler_lib",
-    hdrs = ["edf_scheduler.h"],
+    hdrs = ["edf_scheduler.h", "iwrr_scheduler.h"],
     deps = ["//source/common/common:assert_lib"],
 )
 

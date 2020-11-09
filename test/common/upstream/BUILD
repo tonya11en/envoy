@@ -2,6 +2,7 @@ load(
     "//bazel:envoy_build_system.bzl",
     "envoy_benchmark_test",
     "envoy_cc_benchmark_binary",
+    "envoy_cc_binary",
     "envoy_cc_fuzz_test",
     "envoy_cc_test",
     "envoy_cc_test_library",
@@ -106,6 +107,25 @@ envoy_cc_test(
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/config/endpoint/v3:pkg_cc_proto",
         "@envoy_api//envoy/service/discovery/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_benchmark_binary(
+    name = "iwrr_benchmark",
+    srcs = ["iwrr_benchmark.cc"],
+    external_deps = [
+        "benchmark",
+    ],
+    deps = [
+        "//source/common/upstream:edf_scheduler_lib"
+    ],
+)
+
+envoy_cc_binary(
+    name = "iwrr_scheduler_verify",
+    srcs = ["iwrr_scheduler_verify.cc"],
+    deps = [
+        "//source/common/upstream:edf_scheduler_lib"
     ],
 )
 
