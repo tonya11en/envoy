@@ -15,6 +15,7 @@ template <class C>
 class IWRRScheduler : public Scheduler<C> {
  public:
   std::shared_ptr<C> peekAgain(std::function<double(const C&)> ) override {
+    // not using this now
     return std::shared_ptr<C>();
   }
 
