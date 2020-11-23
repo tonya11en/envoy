@@ -31,7 +31,8 @@ public:
     double weight;
   };
 
-  static std::vector<ObjInfo> setupUniqueWeights(Scheduler<uint32_t>& sched, size_t num_objs, ::benchmark::State& state) {
+  static std::vector<ObjInfo> setupUniqueWeights(
+      RRScheduler<uint32_t>& sched, size_t num_objs, ::benchmark::State& state) {
     std::vector<ObjInfo> info;
 
     state.PauseTiming();
@@ -53,10 +54,10 @@ public:
     return info;
   }
 
-  static void pickTest(Scheduler<uint32_t>& sched,
+  static void pickTest(RRScheduler<uint32_t>& sched,
                        size_t num_objs,
                        ::benchmark::State& state,
-                       std::function<std::vector<ObjInfo>(Scheduler<uint32_t>&)> setup) {
+                       std::function<std::vector<ObjInfo>(RRScheduler<uint32_t>&)> setup) {
 
     std::vector<ObjInfo> obj_info;
     // Track number of times something's been picked.
@@ -73,19 +74,6 @@ public:
 
       pick_counts[*p]++;
     }
-
-#if 0
-    size_t pick_sum = std::accumulate(pick_counts.begin(), pick_counts.end(), 0);
-    size_t weight_sum = 0;
-    for (uint32_t i = 0; i < obj_info.size(); ++i) {
-      weight_sum += obj_info[i].weight;
-    }
-
-    for (size_t c = 0; c < pick_counts.size(); ++c) {
-      std::cout << "obj=" << c << ", select_pct=" << 100 * static_cast<double>(pick_counts[c]) / pick_sum
-                << ", expected_pct=" << 100 * obj_info[c].weight / weight_sum << std::endl;
-    }
-#endif
   }
 };
 
@@ -106,7 +94,7 @@ void BM_UniqueWeightPickIWRR(::benchmark::State& state) {
   IWRRScheduler<uint32_t> iwrr;
   const size_t num_objs = state.range(0);
 
-  SchedulerTester::pickTest(iwrr, num_objs, state, [num_objs, &state](Scheduler<uint32_t>& sched) {
+  SchedulerTester::pickTest(iwrr, num_objs, state, [num_objs, &state](RRScheduler<uint32_t>& sched) {
     return SchedulerTester::setupUniqueWeights(sched, num_objs, state);
   });
 }
@@ -128,7 +116,7 @@ void BM_UniqueWeightPickEdf(::benchmark::State& state) {
   EdfScheduler<uint32_t> edf;
   const size_t num_objs = state.range(0);
 
-  SchedulerTester::pickTest(edf, num_objs, state, [num_objs, &state](Scheduler<uint32_t>& sched) {
+  SchedulerTester::pickTest(edf, num_objs, state, [num_objs, &state](RRScheduler<uint32_t>& sched) {
     return SchedulerTester::setupUniqueWeights(sched, num_objs, state);
   });
 }

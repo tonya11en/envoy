@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <iomanip>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,214 @@ static HostSharedPtr newTestHost(Upstream::ClusterInfoConstSharedPtr cluster,
                    envoy::config::core::v3::UNKNOWN)};
 }
 
+class WRRLoadBalancerTest : public ::testing::Test {
+ protected:
+  using HitMap = absl::node_hash_map<HostConstSharedPtr, uint64_t>;
+
+  void SetUp() override {
+    stats_ = std::make_unique<ClusterStats>(ClusterInfoImpl::generateStats(stats_store_));
+  }
+
+  // Make a host vector with all unique weights.
+  PrioritySetImpl generatePrioritySetUnique(size_t num_hosts) {
+    ASSERT(num_hosts < 1<<16);
+    HostVector hosts;
+    for (size_t i = 1; i <= num_hosts; i++) {
+      hosts.push_back(makeTestHost(
+            info_, fmt::format("tcp://10.0.{}.{}:6379", i / 256, i % 256), i));
+    }
+
+    return makePrioritySet(hosts);
+  }
+
+  // Make a host vector with a specified number of hosts with various weights. 'host_info' contains
+  // a collection of pairs that are (number of hosts, weight of all those hosts).
+  PrioritySetImpl generatePrioritySetCustom(std::vector<std::pair<size_t, double>> host_info) {
+    size_t num_hosts = 0;
+    for (const auto& p : host_info) {
+      num_hosts += p.first;
+    }
+    ASSERT(num_hosts < 1<<16);
+
+    HostVector hosts;
+    for (const auto& p : host_info) {
+      size_t num_hosts = p.first;
+      double weight = p.second;
+      for (size_t i = 0; i < num_hosts; ++i) {
+        hosts.push_back(
+            makeTestHost(info_, fmt::format("tcp://10.0.{}.{}:6379", i / 256, i % 256), weight));
+      }
+    }
+
+    return makePrioritySet(hosts);
+  }
+
+  // Create a new RR load balancer using either an EDF or IWRR scheduler.
+  std::unique_ptr<RoundRobinLoadBalancer> makeRoundRobinLb(bool is_iwrr, PrioritySetImpl& priority_set) {
+    return std::make_unique<RoundRobinLoadBalancer>(
+        priority_set, nullptr, *stats_, runtime_, random_, common_config_, is_iwrr);
+  }
+
+  void doBunchingPicks(absl::node_hash_map<HostConstSharedPtr, std::vector<uint64_t>>& temporal_selections, RoundRobinLoadBalancer* lb, size_t num_rq) {
+    ASSERT(lb != nullptr);
+    for (uint64_t i = 0; i < num_rq; i++) {
+      temporal_selections[lb->chooseHost(nullptr)].emplace_back(i);
+    }
+  }
+
+  void dumpBunchingStats(absl::node_hash_map<HostConstSharedPtr, std::vector<uint64_t>>& temporal_selections) {
+    for (const auto& p : temporal_selections) {
+      std::cout << "weight " << p.first->weight() << " : ";
+      for (const auto& t : p.second) {
+        std::cout << t;
+        if (t != p.second.back()) {
+          std::cout << ",";
+        }
+      }
+      std::cout << std::endl;
+    }
+  }
+
+  void doPicks(HitMap& host_hits, RoundRobinLoadBalancer* lb, size_t num_rq) {
+    ASSERT(lb != nullptr);
+    for (uint64_t i = 0; i < num_rq; i++) {
+      host_hits[lb->chooseHost(nullptr)]++;
+    }
+  }
+
+  void dumpStats(HitMap& host_hits) {
+    double weight_sum = 0;
+    size_t num_rq = 0;
+    for (const auto& host : host_hits) {
+      weight_sum += host.first->weight();
+    }
+    for (const auto& host : host_hits) {
+      num_rq += host.second;
+    }
+
+    absl::node_hash_map<uint64_t, double> weight_to_percent;
+    for (const auto& host : host_hits) {
+      const uint64_t hits = host.second;
+      const double weight = host.first->weight();
+      const double observed_hit_pct = (static_cast<double>(hits) / num_rq) * 100;
+      const std::string url = host.first->address()->asString();
+      std::cout << "url:" << url
+                << ", weight:" << weight
+                << ", hits:" << hits
+                << ", observed_hit_pct:" << observed_hit_pct
+                << std::endl;
+
+      weight_to_percent[weight] +=
+          (static_cast<double>(host.second) / num_rq) * 100;
+    }
+
+    std::cout << std::flush;
+  }
+
+  void uniqueHostTest(bool is_iwrr) {
+    const size_t num_hosts = 10;
+    const size_t num_rq = 1e6;
+
+    PrioritySetImpl priority_set = generatePrioritySetUnique(num_hosts);
+
+    auto lb = makeRoundRobinLb(is_iwrr, priority_set);
+    HitMap host_hits;
+
+    doPicks(host_hits, lb.get(), num_rq);
+    dumpStats(host_hits);
+  }
+
+  void firstPickTest(bool is_iwrr) {
+    const size_t num_rq = 1e4;
+
+    std::vector<std::pair<size_t, double>> host_info{
+      {2, 100},
+      {2, 2000},
+    };
+
+    PrioritySetImpl priority_set = generatePrioritySetCustom(std::move(host_info));
+
+    auto lb = makeRoundRobinLb(is_iwrr, priority_set);
+
+    HitMap host_hits;
+
+    for (size_t ii = 0; ii < num_rq; ++ii) {
+      doPicks(host_hits, lb.get(), 10);
+      lb->refresh(0);
+    }
+
+    dumpStats(host_hits);
+  }
+
+  void bunchingTest(bool is_iwrr) {
+    const size_t num_rq = 1e4;
+
+    std::vector<std::pair<size_t, double>> host_info{
+      {10, 1},
+      {10, 20},
+    };
+
+    PrioritySetImpl priority_set = generatePrioritySetCustom(std::move(host_info));
+
+    auto lb = makeRoundRobinLb(is_iwrr, priority_set);
+    HitMap host_hits;
+
+    absl::node_hash_map<HostConstSharedPtr, std::vector<uint64_t>> temporal_selections;
+    doBunchingPicks(temporal_selections, lb.get(), num_rq);
+    dumpBunchingStats(temporal_selections);
+  }
+
+  Stats::IsolatedStoreImpl stats_store_;
+  std::unique_ptr<ClusterStats> stats_;
+  NiceMock<Runtime::MockLoader> runtime_;
+  Random::RandomGeneratorImpl random_;
+  envoy::config::cluster::v3::Cluster::CommonLbConfig common_config_;
+  std::shared_ptr<MockClusterInfo> info_{new NiceMock<MockClusterInfo>()};
+
+ private:
+  PrioritySetImpl makePrioritySet(HostVector& hosts) {
+    PrioritySetImpl priority_set;
+    HostVectorConstSharedPtr updated_hosts{new HostVector(hosts)};
+    HostsPerLocalitySharedPtr updated_locality_hosts{new HostsPerLocalityImpl(hosts)};
+    priority_set.updateHosts(
+        0,
+        updateHostsParams(updated_hosts, updated_locality_hosts,
+                          std::make_shared<const HealthyHostVector>(*updated_hosts),
+                          updated_locality_hosts),
+        {}, hosts, {}, absl::nullopt);
+
+  return priority_set;
+  }
+};
+
+TEST_F(WRRLoadBalancerTest, ManyUniqueWeightsIWRR) {
+//  uniqueHostTest(true);
+}
+
+TEST_F(WRRLoadBalancerTest, ManyUniqueWeightsEDF) {
+//  uniqueHostTest(false);
+}
+
+TEST_F(WRRLoadBalancerTest, 1stPickIWRR) {
+//  firstPickTest(true);
+}
+
+TEST_F(WRRLoadBalancerTest, 1stPickEDF) {
+//  firstPickTest(false);
+}
+
+TEST_F(WRRLoadBalancerTest, BunchingTestIWRR) {
+  bunchingTest(true);
+}
+
+TEST_F(WRRLoadBalancerTest, BunchingTestEDF) {
+  bunchingTest(false);
+}
+
+// -------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+
 // Simulate weighted LR load balancer.
 TEST(DISABLED_LeastRequestLoadBalancerWeightTest, Weight) {
   const uint64_t num_hosts = 4;
@@ -78,7 +287,7 @@ TEST(DISABLED_LeastRequestLoadBalancerWeightTest, Weight) {
       priority_set, nullptr, stats, runtime, random, common_config, least_request_lb_config};
 
   absl::node_hash_map<HostConstSharedPtr, uint64_t> host_hits;
-  const uint64_t total_requests = 100;
+  const uint64_t total_requests = 10000;
   for (uint64_t i = 0; i < total_requests; i++) {
     host_hits[lb_.chooseHost(nullptr)]++;
   }

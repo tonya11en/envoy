@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -693,10 +694,10 @@ const HostVector& ZoneAwareLoadBalancerBase::hostSourceToHosts(HostsSource hosts
 EdfLoadBalancerBase::EdfLoadBalancerBase(
     const PrioritySet& priority_set, const PrioritySet* local_priority_set, ClusterStats& stats,
     Runtime::Loader& runtime, Random::RandomGenerator& random,
-    const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config)
+    const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config, bool use_iwrr)
     : ZoneAwareLoadBalancerBase(priority_set, local_priority_set, stats, runtime, random,
                                 common_config),
-      seed_(random_.random()) {
+      seed_(random_.random()), use_iwrr_(use_iwrr) {
   // We fully recompute the schedulers for a given host set here on membership change, which is
   // consistent with what other LB implementations do (e.g. thread aware).
   // The downside of a full recompute is that time complexity is O(n * log n),
@@ -726,14 +727,23 @@ void EdfLoadBalancerBase::refresh(uint32_t priority) {
       return;
     }
 
-    scheduler.edf_ = std::make_unique<EdfScheduler<const Host>>();
+    if (use_iwrr_) {
+      scheduler.edf_ = std::make_unique<IWRRScheduler<const Host>>();
+    } else {
+      scheduler.edf_ = std::make_unique<EdfScheduler<const Host>>();
+    }
 
     // Populate scheduler with host list.
     // TODO(mattklein123): We must build the EDF schedule even if all of the hosts are currently
     // weighted 1. This is because currently we don't refresh host sets if only weights change.
     // We should probably change this to refresh at all times. See the comment in
     // BaseDynamicClusterImpl::updateDynamicHostList about this.
-    for (const auto& host : hosts) {
+    std::vector<size_t> host_idx(hosts.size());
+    std::iota(host_idx.begin(), host_idx.end(), 0);
+    std::random_shuffle(host_idx.begin(), host_idx.end());
+    for (const auto& idx : host_idx) {
+      const auto& host = hosts[idx];
+
       // We use a fixed weight here. While the weight may change without
       // notification, this will only be stale until this host is next picked,
       // at which point it is reinserted into the EdfScheduler with its new

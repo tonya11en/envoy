@@ -16,6 +16,7 @@
 #include "common/protobuf/utility.h"
 #include "common/runtime/runtime_protos.h"
 #include "common/upstream/edf_scheduler.h"
+#include "common/upstream/iwrr_scheduler.h"
 
 namespace Envoy {
 namespace Upstream {
@@ -372,23 +373,26 @@ public:
   EdfLoadBalancerBase(const PrioritySet& priority_set, const PrioritySet* local_priority_set,
                       ClusterStats& stats, Runtime::Loader& runtime,
                       Random::RandomGenerator& random,
-                      const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config);
+                      const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config,
+                      bool use_iwrr = false);
 
   // Upstream::LoadBalancerBase
   HostConstSharedPtr peekAnotherHost(LoadBalancerContext* context) override;
   HostConstSharedPtr chooseHostOnce(LoadBalancerContext* context) override;
+
+  virtual void refresh(uint32_t priority);
 
 protected:
   struct Scheduler {
     // EdfScheduler for weighted LB. The edf_ is only created when the original
     // host weights of 2 or more hosts differ. When not present, the
     // implementation of chooseHostOnce falls back to unweightedHostPick.
-    std::unique_ptr<EdfScheduler<const Host>> edf_;
+    //
+    // @tallen TODO revisit this name if not hacking.
+    std::unique_ptr<RRScheduler<const Host>> edf_;
   };
 
   void initialize();
-
-  virtual void refresh(uint32_t priority);
 
   // Seed to allow us to desynchronize load balancers across a fleet. If we don't
   // do this, multiple Envoys that receive an update at the same time (or even
@@ -396,6 +400,7 @@ protected:
   // backends in roughly lock step, causing significant imbalance and potential
   // overload.
   const uint64_t seed_;
+  bool use_iwrr_;
 
 private:
   virtual void refreshHostSource(const HostsSource& source) PURE;
@@ -418,9 +423,9 @@ public:
   RoundRobinLoadBalancer(const PrioritySet& priority_set, const PrioritySet* local_priority_set,
                          ClusterStats& stats, Runtime::Loader& runtime,
                          Random::RandomGenerator& random,
-                         const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config)
+                         const envoy::config::cluster::v3::Cluster::CommonLbConfig& common_config, bool use_iwrr = false)
       : EdfLoadBalancerBase(priority_set, local_priority_set, stats, runtime, random,
-                            common_config) {
+                            common_config, use_iwrr) {
     initialize();
   }
 

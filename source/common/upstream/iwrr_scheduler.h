@@ -1,3 +1,5 @@
+#pragma once
+
 #include <algorithm>
 #include <memory>
 #include <iostream>
@@ -12,7 +14,7 @@ namespace {
  * IWRR scheduler.
  */
 template <class C>
-class IWRRScheduler : public Scheduler<C> {
+class IWRRScheduler : public RRScheduler<C> {
  public:
   std::shared_ptr<C> peekAgain(std::function<double(const C&)> ) override {
     // not using this now
@@ -35,7 +37,6 @@ class IWRRScheduler : public Scheduler<C> {
   }
 
   void add(double weight, std::shared_ptr<C> entry) override {
-    curr_weights_.emplace(entry, weight);
     weights_.emplace(entry, weight);
   }
 

@@ -22,9 +22,9 @@ namespace Upstream {
  * A hack to illustrate a point.
  */
 template <class C>
-class Scheduler {
+class RRScheduler {
 public:
-  virtual ~Scheduler() {}
+  virtual ~RRScheduler() {}
   virtual std::shared_ptr<C> peekAgain(std::function<double(const C&)> calculate_weight) = 0;
   virtual std::shared_ptr<C> pickAndAdd(std::function<double(const C&)> calculate_weight) = 0;
   virtual void add(double weight, std::shared_ptr<C> entry) = 0;
@@ -37,7 +37,7 @@ public:
 // Each pick from the schedule has the earliest deadline entry selected. Entries have deadlines set
 // at current time + 1 / weight, providing weighted round robin behavior with floating point
 // weights and an O(log n) pick time.
-template <class C> class EdfScheduler : public Scheduler<C> {
+template <class C> class EdfScheduler : public RRScheduler<C> {
 public:
   // Each time peekAgain is called, it will return the best-effort subsequent
   // pick, popping and reinserting the entry as if it had been picked, and
