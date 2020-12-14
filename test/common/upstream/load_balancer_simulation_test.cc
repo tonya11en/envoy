@@ -83,7 +83,7 @@ class WRRLoadBalancerTest : public ::testing::Test {
     return makePrioritySet(hosts);
   }
 
-  // Create a new RR load balancer using either an EDF or IWRR scheduler.
+  // is_iwrr means to use WRSQ now
   std::unique_ptr<RoundRobinLoadBalancer> makeRoundRobinLb(bool is_iwrr, PrioritySetImpl& priority_set) {
     return std::make_unique<RoundRobinLoadBalancer>(
         priority_set, nullptr, *stats_, runtime_, random_, common_config_, is_iwrr);
@@ -162,8 +162,9 @@ class WRRLoadBalancerTest : public ::testing::Test {
     const size_t num_rq = 1e4;
 
     std::vector<std::pair<size_t, double>> host_info{
-      {2, 100},
-      {2, 2000},
+      {1, 9030},
+      {1, 870},
+      {1, 100},
     };
 
     PrioritySetImpl priority_set = generatePrioritySetCustom(std::move(host_info));
@@ -221,15 +222,15 @@ class WRRLoadBalancerTest : public ::testing::Test {
   }
 };
 
-TEST_F(WRRLoadBalancerTest, ManyUniqueWeightsIWRR) {
-//  uniqueHostTest(true);
+TEST_F(WRRLoadBalancerTest, ManyUniqueWeightsWRSQ) {
+  //uniqueHostTest(true);
 }
 
 TEST_F(WRRLoadBalancerTest, ManyUniqueWeightsEDF) {
 //  uniqueHostTest(false);
 }
 
-TEST_F(WRRLoadBalancerTest, 1stPickIWRR) {
+TEST_F(WRRLoadBalancerTest, 1stPickWRSQ) {
 //  firstPickTest(true);
 }
 
@@ -237,12 +238,12 @@ TEST_F(WRRLoadBalancerTest, 1stPickEDF) {
 //  firstPickTest(false);
 }
 
-TEST_F(WRRLoadBalancerTest, BunchingTestIWRR) {
+TEST_F(WRRLoadBalancerTest, BunchingTestWRSQ) {
   bunchingTest(true);
 }
 
 TEST_F(WRRLoadBalancerTest, BunchingTestEDF) {
-  bunchingTest(false);
+//  bunchingTest(false);
 }
 
 // -------------------------------------------------------------------------------------------------

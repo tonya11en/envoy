@@ -125,8 +125,11 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "edf_scheduler_lib",
-    hdrs = ["edf_scheduler.h", "iwrr_scheduler.h"],
-    deps = ["//source/common/common:assert_lib"],
+    hdrs = ["edf_scheduler.h", "iwrr_scheduler.h", "wrsq_scheduler.h"],
+    deps = [
+        "//source/common/common:assert_lib",
+        "//include/envoy/common:random_generator_interface",
+    ],
 )
 
 envoy_cc_library(
@@ -178,6 +181,7 @@ envoy_cc_library(
         "//include/envoy/common:random_generator_interface",
         "//include/envoy/runtime:runtime_interface",
         "//include/envoy/stats:stats_interface",
+        "//source/common/common:random_generator_lib",
         "//include/envoy/upstream:load_balancer_interface",
         "//include/envoy/upstream:upstream_interface",
         "//source/common/common:assert_lib",

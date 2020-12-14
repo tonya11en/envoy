@@ -117,7 +117,8 @@ envoy_cc_benchmark_binary(
         "benchmark",
     ],
     deps = [
-        "//source/common/upstream:edf_scheduler_lib"
+        "//source/common/upstream:edf_scheduler_lib",
+        "//source/common/common:random_generator_lib",
     ],
 )
 
@@ -125,7 +126,8 @@ envoy_cc_binary(
     name = "iwrr_scheduler_verify",
     srcs = ["iwrr_scheduler_verify.cc"],
     deps = [
-        "//source/common/upstream:edf_scheduler_lib"
+        "//source/common/upstream:edf_scheduler_lib",
+        "//source/common/common:random_generator_lib",
     ],
 )
 
@@ -316,6 +318,8 @@ envoy_cc_test(
     deps = [
         ":utility_lib",
         "//source/common/network:utility_lib",
+        "//source/common/upstream:edf_scheduler_lib",
+        "//source/common/common:random_generator_lib",
         "//source/common/runtime:runtime_lib",
         "//source/common/upstream:load_balancer_lib",
         "//source/common/upstream:upstream_includes",

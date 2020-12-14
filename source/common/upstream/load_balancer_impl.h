@@ -17,6 +17,7 @@
 #include "common/runtime/runtime_protos.h"
 #include "common/upstream/edf_scheduler.h"
 #include "common/upstream/iwrr_scheduler.h"
+#include "common/upstream/wrsq_scheduler.h"
 
 namespace Envoy {
 namespace Upstream {

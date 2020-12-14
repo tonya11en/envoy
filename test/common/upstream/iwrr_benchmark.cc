@@ -6,6 +6,7 @@
 
 #include "common/upstream/edf_scheduler.h"
 #include "common/upstream/iwrr_scheduler.h"
+#include "common/upstream/wrsq_scheduler.h"
 
 #include "test/benchmark/main.h"
 
@@ -101,6 +102,8 @@ void BM_UniqueWeightPickIWRR(::benchmark::State& state) {
 BENCHMARK(BM_UniqueWeightPickIWRR)
   ->RangeMultiplier(2)->Range(1<<5, 1<<16);
 
+// ==================
+
 void BM_UniqueWeightAddEdf(::benchmark::State& state) {
   EdfScheduler<uint32_t> edf;
   const size_t num_objs = state.range(0);
@@ -121,6 +124,30 @@ void BM_UniqueWeightPickEdf(::benchmark::State& state) {
   });
 }
 BENCHMARK(BM_UniqueWeightPickEdf)
+  ->RangeMultiplier(2)->Range(1<<5, 1<<16);
+
+// -----------------------<<
+
+void BM_UniqueWeightAddWRSQ(::benchmark::State& state) {
+  WRSQScheduler<uint32_t> wrsq;
+  const size_t num_objs = state.range(0);
+  for (auto _ : state) { // NOLINT: Silences warning about dead store
+    SchedulerTester::setupUniqueWeights(wrsq, num_objs, state);
+  }
+}
+BENCHMARK(BM_UniqueWeightAddWRSQ)
+  ->Unit(::benchmark::kMicrosecond)
+  ->RangeMultiplier(2)->Range(1<<5, 1<<16);
+
+void BM_UniqueWeightPickWRSQ(::benchmark::State& state) {
+  WRSQScheduler<uint32_t> wrsq;
+  const size_t num_objs = state.range(0);
+
+  SchedulerTester::pickTest(wrsq, num_objs, state, [num_objs, &state](RRScheduler<uint32_t>& sched) {
+    return SchedulerTester::setupUniqueWeights(sched, num_objs, state);
+  });
+}
+BENCHMARK(BM_UniqueWeightPickWRSQ)
   ->RangeMultiplier(2)->Range(1<<5, 1<<16);
 
 // benchmarks

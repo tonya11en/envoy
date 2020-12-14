@@ -728,7 +728,7 @@ void EdfLoadBalancerBase::refresh(uint32_t priority) {
     }
 
     if (use_iwrr_) {
-      scheduler.edf_ = std::make_unique<IWRRScheduler<const Host>>();
+      scheduler.edf_ = std::make_unique<WRSQScheduler<const Host>>();
     } else {
       scheduler.edf_ = std::make_unique<EdfScheduler<const Host>>();
     }

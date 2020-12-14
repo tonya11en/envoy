@@ -4,6 +4,7 @@
 
 #include "common/upstream/edf_scheduler.h"
 #include "common/upstream/iwrr_scheduler.h"
+#include "common/upstream/wrsq_scheduler.h"
 
 using namespace Envoy::Upstream;
 
@@ -11,7 +12,7 @@ using namespace Envoy::Upstream;
  * Hacking together some quick checks.
  */
 
-size_t syncCheck(Scheduler<uint32_t>& sched1, Scheduler<uint32_t>& sched2) {
+size_t syncCheck(RRScheduler<uint32_t>& sched1, RRScheduler<uint32_t>& sched2) {
   size_t collisions = 0;
 
   std::vector<std::pair<double, std::shared_ptr<uint32_t>>> inputs;
@@ -43,7 +44,7 @@ size_t syncCheck(Scheduler<uint32_t>& sched1, Scheduler<uint32_t>& sched2) {
   return collisions;
 }
 
-void selectionCounts(Scheduler<uint32_t>& sched) {
+void selectionCounts(RRScheduler<uint32_t>& sched) {
   std::cout << "diff between observed and expected % (1.0 means 1%)\n";
 
   // Try 16 objects for sane plots.
@@ -83,6 +84,11 @@ void selectionCounts(Scheduler<uint32_t>& sched) {
 
 // -------------------------------------------------------------------------------------------------
 
+void syncCheckWRSQ() {
+  WRSQScheduler<uint32_t> wrsq1, wrsq2;
+  std::cout << "WRSQ collisions: " << syncCheck(wrsq1, wrsq2) << std::endl;
+}
+
 void syncCheckIWRR() {
   IWRRScheduler<uint32_t> iwrr1, iwrr2;
   std::cout << "IWRR collisions: " << syncCheck(iwrr1, iwrr2) << std::endl;
@@ -105,11 +111,19 @@ void countsEDF() {
   selectionCounts(edf);
 }
 
+void countsWRSQ() {
+  std::cout << "---\nWRSQ selections\n--\n";
+  WRSQScheduler<uint32_t> wrsq;
+  selectionCounts(wrsq);
+}
+
 int main() {
   syncCheckEDF();
   syncCheckIWRR();
+  syncCheckWRSQ();
   countsEDF();
   countsIWRR();
+  countsWRSQ();
 
   return 0;
 }
