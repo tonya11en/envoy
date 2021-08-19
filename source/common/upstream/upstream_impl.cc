@@ -59,6 +59,9 @@ namespace Envoy {
 namespace Upstream {
 namespace {
 
+constexpr absl::string_view WeightedLocalitySchedulerWRSQRuntime =
+    "envoy.reloadable_features.upstream.locality_scheduler_wrsq";
+
 const Network::Address::InstanceConstSharedPtr
 getSourceAddress(const envoy::config::cluster::v3::Cluster& cluster,
                  const envoy::config::core::v3::BindConfig& bind_config) {
@@ -403,7 +406,7 @@ void HostSetImpl::updateHosts(PrioritySet::UpdateHostsParams&& update_hosts_para
 }
 
 void HostSetImpl::rebuildLocalityScheduler(
-    std::unique_ptr<EdfScheduler<LocalityEntry>>& locality_scheduler,
+    std::unique_ptr<Scheduler<LocalityEntry>>& locality_scheduler,
     std::vector<std::shared_ptr<LocalityEntry>>& locality_entries,
     const HostsPerLocality& eligible_hosts_per_locality, const HostVector& eligible_hosts,
     HostsPerLocalityConstSharedPtr all_hosts_per_locality,
@@ -427,7 +430,13 @@ void HostSetImpl::rebuildLocalityScheduler(
   locality_scheduler = nullptr;
   if (all_hosts_per_locality != nullptr && locality_weights != nullptr &&
       !locality_weights->empty() && !eligible_hosts.empty()) {
-    locality_scheduler = std::make_unique<EdfScheduler<LocalityEntry>>();
+
+    if (runtime_.snapshot().featureEnabled(WeightedLocalitySchedulerWRSQRuntime, true) {
+      locality_scheduler = std::make_unique<WRSQScheduler<LocalityEntry>>();
+    } else {
+      locality_scheduler = std::make_unique<EdfScheduler<LocalityEntry>>();
+    }
+
     locality_entries.clear();
     for (uint32_t i = 0; i < all_hosts_per_locality->get().size(); ++i) {
       const double effective_weight = effectiveLocalityWeight(
@@ -453,8 +462,7 @@ absl::optional<uint32_t> HostSetImpl::chooseDegradedLocality() {
   return chooseLocality(degraded_locality_scheduler_.get());
 }
 
-absl::optional<uint32_t>
-HostSetImpl::chooseLocality(EdfScheduler<LocalityEntry>* locality_scheduler) {
+absl::optional<uint32_t> HostSetImpl::chooseLocality(Scheduler<LocalityEntry>* locality_scheduler) {
   if (locality_scheduler == nullptr) {
     return {};
   }

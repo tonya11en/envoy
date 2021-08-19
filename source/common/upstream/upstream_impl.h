@@ -442,19 +442,19 @@ private:
   // @param overprovisioning_factor the overprovisioning factor to use when computing the effective
   // weight of a locality.
   static void rebuildLocalityScheduler(
-      std::unique_ptr<EdfScheduler<LocalityEntry>>& locality_scheduler,
+      std::unique_ptr<Scheduler<LocalityEntry>>& locality_scheduler,
       std::vector<std::shared_ptr<LocalityEntry>>& locality_entries,
       const HostsPerLocality& eligible_hosts_per_locality, const HostVector& eligible_hosts,
       HostsPerLocalityConstSharedPtr all_hosts_per_locality,
       HostsPerLocalityConstSharedPtr excluded_hosts_per_locality,
       LocalityWeightsConstSharedPtr locality_weights, uint32_t overprovisioning_factor);
 
-  static absl::optional<uint32_t> chooseLocality(EdfScheduler<LocalityEntry>* locality_scheduler);
+  static absl::optional<uint32_t> chooseLocality(Scheduler<LocalityEntry>* locality_scheduler);
 
   std::vector<std::shared_ptr<LocalityEntry>> healthy_locality_entries_;
-  std::unique_ptr<EdfScheduler<LocalityEntry>> healthy_locality_scheduler_;
+  std::unique_ptr<Scheduler<LocalityEntry>> healthy_locality_scheduler_;
   std::vector<std::shared_ptr<LocalityEntry>> degraded_locality_entries_;
-  std::unique_ptr<EdfScheduler<LocalityEntry>> degraded_locality_scheduler_;
+  std::unique_ptr<Scheduler<LocalityEntry>> degraded_locality_scheduler_;
 };
 
 using HostSetImplPtr = std::unique_ptr<HostSetImpl>;
