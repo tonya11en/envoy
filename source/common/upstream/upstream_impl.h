@@ -388,6 +388,7 @@ public:
   void updateHosts(PrioritySet::UpdateHostsParams&& update_hosts_params,
                    LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
                    const HostVector& hosts_removed,
+                  Random::RandomGenerator& random,
                    absl::optional<uint32_t> overprovisioning_factor = absl::nullopt);
 
 protected:
@@ -441,13 +442,15 @@ private:
   // @param locality_weights the weighting of each locality.
   // @param overprovisioning_factor the overprovisioning factor to use when computing the effective
   // weight of a locality.
+  // @param random a random generator
   static void rebuildLocalityScheduler(
       std::unique_ptr<Scheduler<LocalityEntry>>& locality_scheduler,
       std::vector<std::shared_ptr<LocalityEntry>>& locality_entries,
       const HostsPerLocality& eligible_hosts_per_locality, const HostVector& eligible_hosts,
       HostsPerLocalityConstSharedPtr all_hosts_per_locality,
       HostsPerLocalityConstSharedPtr excluded_hosts_per_locality,
-      LocalityWeightsConstSharedPtr locality_weights, uint32_t overprovisioning_factor);
+      LocalityWeightsConstSharedPtr locality_weights, uint32_t overprovisioning_factor,
+      Random::RandomGenerator& random);
 
   static absl::optional<uint32_t> chooseLocality(Scheduler<LocalityEntry>* locality_scheduler);
 
@@ -485,7 +488,8 @@ public:
   void updateHosts(uint32_t priority, UpdateHostsParams&& update_hosts_params,
                    LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
                    const HostVector& hosts_removed,
-                   absl::optional<uint32_t> overprovisioning_factor = absl::nullopt,
+                  Random::RandomGenerator& random,
+                   absl::optional<uint32_t> overprovisioning_factor,
                    HostMapConstSharedPtr cross_priority_host_map = nullptr) override;
 
   void batchHostUpdate(BatchUpdateCb& callback) override;
@@ -541,6 +545,7 @@ private:
     void updateHosts(uint32_t priority, PrioritySet::UpdateHostsParams&& update_hosts_params,
                      LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
                      const HostVector& hosts_removed,
+                     Random::RandomGenerator& random,
                      absl::optional<uint32_t> overprovisioning_factor) override;
 
     absl::node_hash_set<HostSharedPtr> all_hosts_added_;
@@ -562,7 +567,8 @@ public:
   void updateHosts(uint32_t priority, UpdateHostsParams&& update_hosts_params,
                    LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
                    const HostVector& hosts_removed,
-                   absl::optional<uint32_t> overprovisioning_factor = absl::nullopt,
+                  Random::RandomGenerator& random,
+                   absl::optional<uint32_t> overprovisioning_factor,
                    HostMapConstSharedPtr cross_priority_host_map = nullptr) override;
   HostMapConstSharedPtr crossPriorityHostMap() const override;
 

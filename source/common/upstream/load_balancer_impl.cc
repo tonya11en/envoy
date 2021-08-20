@@ -732,8 +732,7 @@ void WRRLoadBalancerBase::refresh(uint32_t priority) {
       return;
     }
 
-    if (runtime_.snapshot().featureEnabled(WeightedRoundRobinSchedulerWRSQRuntime, true) &&
-        use_wrsq_) {
+    if (Runtime::runtimeFeatureEnabled(WeightedRoundRobinSchedulerWRSQRuntime) && use_wrsq_) {
       scheduler.sched_ = std::make_unique<WRSQScheduler<const Host>>(random_);
     } else {
       scheduler.sched_ = std::make_unique<EdfScheduler<const Host>>();

@@ -882,7 +882,7 @@ void SubsetLoadBalancer::HostSubsetImpl::update(const HostVector& hosts_added,
                                degraded_hosts, degraded_hosts_per_locality, excluded_hosts,
                                excluded_hosts_per_locality),
                            determineLocalityWeights(*hosts_per_locality), filtered_added,
-                           filtered_removed, absl::nullopt);
+                           filtered_removed, random_, absl::nullopt);
 }
 
 LocalityWeightsConstSharedPtr SubsetLoadBalancer::HostSubsetImpl::determineLocalityWeights(
