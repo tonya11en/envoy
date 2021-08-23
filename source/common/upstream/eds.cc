@@ -26,7 +26,8 @@ EdsClusterImpl::EdsClusterImpl(
       local_info_(factory_context.localInfo()),
       cluster_name_(cluster.eds_cluster_config().service_name().empty()
                         ? cluster.name()
-                        : cluster.eds_cluster_config().service_name()) {
+                        : cluster.eds_cluster_config().service_name()),
+      random_(factory_context.api().randomGenerator()) {
   Event::Dispatcher& dispatcher = factory_context.dispatcher();
   assignment_timeout_ = dispatcher.createTimer([this]() -> void { onAssignmentTimeout(); });
   const auto& eds_config = cluster.eds_cluster_config().eds_config();
@@ -231,7 +232,7 @@ void EdsClusterImpl::reloadHealthyHostsHelper(const HostSharedPtr& host) {
 
     prioritySet().updateHosts(priority,
                               HostSetImpl::partitionHosts(hosts_copy, hosts_per_locality_copy),
-                              host_set->localityWeights(), {}, hosts_to_remove, absl::nullopt);
+                              host_set->localityWeights(), {}, hosts_to_remove, random_, absl::nullopt);
   }
 }
 
