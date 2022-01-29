@@ -9,7 +9,7 @@ ENV ENVOY_STDLIB=libstdc++
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -y update \
-  && apt-get -y install --no-install-recommends libpython2.7 net-tools psmisc vim 2>&1 \
+  ; apt-get -y install --no-install-recommends libpython2.7 net-tools psmisc vim 2>&1 \
   # Create a non-root user to use if preferred - see https://aka.ms/vscode-remote/containers/non-root-user.
   && groupadd --gid $USER_GID $USERNAME \
   && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME -G pcap -d /build \

@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package envoy.extensions.filters.http.priority_buffer.v3;
+
+import "envoy/config/core/v3/base.proto";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
+
+import "udpa/annotations/status.proto";
+import "udpa/annotations/versioning.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.filters.http.priority_buffer.v3";
+option java_outer_classname = "PriorityBufferProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/priority_buffer/v3;priority_bufferv3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// [#protodoc-title: PriorityBuffer]
+// PriorityBuffer :ref:`configuration overview <config_http_filters_priority_buffer>`.
+// [#extension: envoy.filters.http.priority_buffer]
+
+//*
+//
+//TODO: This is a POC, so for now we'll omit the bits around priority classification of requests.
+//
+
+// Configuration for the thread-local priority queue that will buffer the requests.
+message ThreadLocalBufferQueueConfig {
+  // The amount of time requests will be queued before being scheduled for dispatch.
+  google.protobuf.Duration buffering_interval = 1 [(validate.rules).duration = {
+    required: true
+    lte {seconds: 5}
+    gte {nanos: 50000000}
+  }];
+
+  // An ordered list of the various priorities found. The priorities are case-insensitive and if the
+  // priority header is not found a priority of DEFAULT will be assigned to a request.
+  repeated string priority_order = 2;
+
+  google.protobuf.Duration queue_timeout = 3 [(validate.rules).duration = {
+    required: true
+    gt {}
+  }];
+}
+
+message FilterConfig {
+  oneof queue_config {
+    option (validate.required) = true;
+
+    // Gradient concurrency control will be used.
+    ThreadLocalBufferQueueConfig thread_local_queue_config = 1;
+
+    // The header which contains the "priority classification" of the requests.
+    string header_key = 2 [(validate.rules).string = {min_bytes: 1}];
+  }
+
+  // If set to false, the priority buffer filter will operate as a pass-through filter. If the
+  // message is unspecified, the filter will be enabled.
+  config.core.v3.RuntimeFeatureFlag enabled = 3;
+}

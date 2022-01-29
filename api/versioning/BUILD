@@ -106,6 +106,7 @@ proto_library(
         "//envoy/extensions/filters/http/oauth2/v3:pkg",
         "//envoy/extensions/filters/http/on_demand/v3:pkg",
         "//envoy/extensions/filters/http/original_src/v3:pkg",
+        "//envoy/extensions/filters/http/priority_buffer/v3:pkg",
         "//envoy/extensions/filters/http/ratelimit/v3:pkg",
         "//envoy/extensions/filters/http/rbac/v3:pkg",
         "//envoy/extensions/filters/http/router/v3:pkg",
