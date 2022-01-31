@@ -40,7 +40,7 @@ public:
   ThreadLocalQueueConfig(const Config& proto_config, Event::Dispatcher& dispatcher)
       : dispatcher_(dispatcher),
         buffering_interval_(PROTOBUF_GET_MS_REQUIRED(proto_config, buffering_interval)),
-        queue_timeout_(PROTOBUF_GET_MS_REQUIRED(proto_config, queue_timeout)) {
+        queue_timeout_(PROTOBUF_GET_MS_REQUIRED(proto_config, queue_timeout) * 1000000) {
     if (proto_config.priority_order_size() == 0) {
       priority_ordering_.emplace_back("default");
     } else {

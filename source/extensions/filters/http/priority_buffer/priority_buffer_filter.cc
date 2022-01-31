@@ -18,18 +18,18 @@ namespace PriorityBufferFilter {
 FilterConfig::FilterConfig(
     const envoy::extensions::filters::http::priority_buffer::v3::FilterConfig& proto_config,
     Runtime::Loader& runtime)
-    : priority_header_key_(proto_config.header_key()), runtime_(runtime),
+    : priority_buffer_feature_(proto_config.enabled(), runtime),
+      priority_header_key_(proto_config.header_key()), runtime_(runtime),
       proto_config_(proto_config) {}
 
 PriorityBufferFilter::PriorityBufferFilter(std::shared_ptr<FilterConfig> config,
-                                           ThreadLocal::TypedSlotPtr<ThreadLocalQueueImpl>&& tls)
-    : config_(std::move(config)),
-      priority_buffer_feature_(config->proto().enabled(), config->runtime()), tls_(std::move(tls)) {
-}
+                                           std::shared_ptr<ThreadLocalQueueImpl> tlq)
+    : config_(std::move(config)), tlq_(tlq) {}
 
 Http::FilterHeadersStatus PriorityBufferFilter::decodeHeaders(Http::RequestHeaderMap& headers,
                                                               bool) {
-  if (dequeued_ || !priority_buffer_feature_.enabled()) {
+  std::cout << "@tallen decoding headers\n";
+  if (dequeued_ || !config_->enabled()) {
     // This request is scheduled from the buffer queue.
     return Http::FilterHeadersStatus::Continue;
   }
@@ -37,9 +37,9 @@ Http::FilterHeadersStatus PriorityBufferFilter::decodeHeaders(Http::RequestHeade
   dequeued_ = true;
   auto pri = headers.get(config_->priorityHeaderKey());
   if (pri.empty()) {
-    bufferQueue().enqueue(kDefaultPriority, callbacks_);
+    tlq_->enqueue(kDefaultPriority, callbacks_);
   } else {
-    bufferQueue().enqueue(pri[0]->value().getStringView(), callbacks_);
+    tlq_->enqueue(pri[0]->value().getStringView(), callbacks_);
   }
 
   return Http::FilterHeadersStatus::StopAllIterationAndBuffer;

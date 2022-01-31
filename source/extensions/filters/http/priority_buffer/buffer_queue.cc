@@ -13,7 +13,12 @@ namespace PriorityBufferFilter {
 void ThreadLocalQueueImpl::start() {
   ASSERT(!started_);
 
-  flush_timer_ = config_->dispatcher().createTimer([this]() -> void { this->flush(); });
+  flush_timer_ = config_->dispatcher().createTimer([this]() -> void {
+    std::cout << "@tallen timer fired\n";
+    this->flush();
+    flush_timer_->enableTimer(config_->bufferingInterval());
+  });
+  flush_timer_->enableTimer(config_->bufferingInterval());
 
   time_source_.monotonicTime();
   started_ = true;
@@ -22,10 +27,13 @@ void ThreadLocalQueueImpl::start() {
 
 void ThreadLocalQueueImpl::enqueue(absl::string_view priority,
                                    Http::StreamDecoderFilterCallbacks* cb) {
+  std::cout << "@tallen enqueue with priority " << priority << std::endl;
   ASSERT(started_);
   for (auto& entry : priority_queues_) {
+    std::cout << "@tallen looping - " << entry->priority_ << std::endl;
     if (StringUtil::CaseInsensitiveCompare()(priority, entry->priority_)) {
       absl::MutexLock ml(&entry->qmtx_);
+      std::cout << "@tallen matched - " << entry->priority_ << std::endl;
       entry->queue_.emplace_back(cb, time_source_.monotonicTime());
       return;
     }
@@ -35,6 +43,7 @@ void ThreadLocalQueueImpl::enqueue(absl::string_view priority,
 }
 
 void ThreadLocalQueueImpl::flush() {
+  std::cout << "@tallen FLUSH called\n";
   CallbackQueue q;
 
   for (auto& entry : priority_queues_) {
@@ -47,12 +56,16 @@ void ThreadLocalQueueImpl::flush() {
       auto elapsed_time = time_source_.monotonicTime() - enqueue_time;
       const bool expired = this->config_->queueTimeout() <= elapsed_time;
       if (expired) {
-        cb->sendLocalReply(Http::Code::ServiceUnavailable, "priority queue timeout", nullptr,
-                           absl::nullopt, "priority_queue_timeout");
+        std::cout << "expired - elapsed:" << elapsed_time.count()
+                  << ", timeout=" << this->config_->queueTimeout().count() << std::endl;
+        cb->dispatcher().post([cb]() {
+          cb->sendLocalReply(Http::Code::ServiceUnavailable, "priority queue timeout", nullptr,
+                             absl::nullopt, "priority_queue_timeout");
+        });
         continue;
       }
 
-      cb->continueDecoding();
+      cb->dispatcher().post([cb]() { cb->continueDecoding(); });
     }
     entry->queue_.clear();
   }

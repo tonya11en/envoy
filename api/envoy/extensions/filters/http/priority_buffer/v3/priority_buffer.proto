@@ -51,10 +51,10 @@ message FilterConfig {
 
     // Gradient concurrency control will be used.
     ThreadLocalBufferQueueConfig thread_local_queue_config = 1;
-
-    // The header which contains the "priority classification" of the requests.
-    string header_key = 2 [(validate.rules).string = {min_bytes: 1}];
   }
+
+  // The header which contains the "priority classification" of the requests.
+  string header_key = 2 [(validate.rules).string = {min_bytes: 1}];
 
   // If set to false, the priority buffer filter will operate as a pass-through filter. If the
   // message is unspecified, the filter will be enabled.

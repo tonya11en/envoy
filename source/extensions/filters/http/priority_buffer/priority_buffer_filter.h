@@ -31,11 +31,13 @@ public:
   const envoy::extensions::filters::http::priority_buffer::v3::FilterConfig& proto() {
     return proto_config_;
   }
+  bool enabled() { return true; }
 
 private:
+  Runtime::FeatureFlag priority_buffer_feature_;
   Http::LowerCaseString priority_header_key_;
   Runtime::Loader& runtime_;
-  const envoy::extensions::filters::http::priority_buffer::v3::FilterConfig& proto_config_;
+  const envoy::extensions::filters::http::priority_buffer::v3::FilterConfig proto_config_;
 };
 
 using FilterConfigPtr = std::shared_ptr<FilterConfig>;
@@ -48,7 +50,7 @@ using ConfigProto = envoy::extensions::filters::http::priority_buffer::v3::Filte
 class PriorityBufferFilter : public Http::PassThroughFilter, Logger::Loggable<Logger::Id::filter> {
 public:
   PriorityBufferFilter(std::shared_ptr<FilterConfig> config,
-                       ThreadLocal::TypedSlotPtr<ThreadLocalQueueImpl>&& tls);
+                       std::shared_ptr<ThreadLocalQueueImpl> tlq);
 
   // Http::StreamFilterBase
   void onDestroy() override {}
@@ -58,8 +60,6 @@ public:
                                           bool end_stream) override;
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
 
-  ThreadLocalQueueImpl& bufferQueue() { return **tls_; }
-
 private:
   FilterConfigPtr config_;
   Http::StreamDecoderFilterCallbacks* callbacks_{};
@@ -67,8 +67,7 @@ private:
   // Whether this request has been queued already.
   bool dequeued_{false};
 
-  Runtime::FeatureFlag priority_buffer_feature_;
-  const ThreadLocal::TypedSlotPtr<ThreadLocalQueueImpl> tls_;
+  std::shared_ptr<ThreadLocalQueueImpl> tlq_;
 };
 
 } // namespace PriorityBufferFilter

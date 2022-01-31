@@ -19,19 +19,15 @@ Http::FilterFactoryCb PriorityBufferFilterFactory::createFilterFactoryFromProtoT
 
   auto tlq_cfg = std::make_shared<ThreadLocalQueueConfig>(config.thread_local_queue_config(),
                                                           context.mainThreadDispatcher());
-  ThreadLocalQueueImpl tlq(tlq_cfg, context.timeSource());
 
-  // Create the thread-local buffer.
-  auto tls = ThreadLocal::TypedSlot<ThreadLocalQueueImpl>::makeUnique(context.threadLocal());
-  tls->set([tlq_cfg, &context](Event::Dispatcher&) {
-    return std::make_shared<ThreadLocalQueueImpl>(tlq_cfg, context.timeSource());
-  });
+  auto tlq = std::make_shared<ThreadLocalQueueImpl>(tlq_cfg, context.timeSource());
+  tlq->start();
 
   auto filter_config = std::make_shared<FilterConfig>(config, context.runtime());
 
-  return [filter_config, &tls](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-    callbacks.addStreamFilter(
-        std::make_shared<PriorityBufferFilter>(filter_config, std::move(tls)));
+  return [fc = filter_config,
+          tlq = std::move(tlq)](Http::FilterChainFactoryCallbacks& callbacks) -> void {
+    callbacks.addStreamFilter(std::make_shared<PriorityBufferFilter>(fc, tlq));
   };
 }
 
