@@ -40,6 +40,7 @@ same or different weights.
   active requests on those hosts increases. P2C selection is particularly useful for load
   balancer implementations due to its resistance to
   [herding behavior](https://en.wikipedia.org/wiki/Thundering_herd_problem).
+
 * *all weights not equal*:  If two or more hosts in the cluster have different load balancing
   weights, the load balancer shifts into a mode where it uses a weighted round robin schedule in
   which weights are dynamically adjusted based on the host's request load at the time of selection.
