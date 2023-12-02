@@ -1299,10 +1299,15 @@ HostConstSharedPtr LeastRequestLoadBalancer::unweightedHostPick(const HostVector
                                                                 const HostsSource&) {
   HostSharedPtr candidate_host = nullptr;
 
-  // Do full scan if it's required explicitly or the number of choices is equal to or larger than
-  // the hosts size.
-  if ((hosts_to_use.size() <= choice_count_) || enable_full_scan_) {
-    for (const auto& sampled_host : hosts_to_use) {
+  // Use a full scan if:
+  // - it's explicitly configured, or
+  // - the number of choices is equal to or larger than the number of hosts.
+  if (enable_full_scan_ || (hosts_to_use.size() <= choice_count_)) {
+    // Choose a random index to start from preventing always picking the first host in the list.
+    const int rand_idx = random_.random() % hosts_to_use.size();
+    for (unsigned long i = 0; i < hosts_to_use.size(); i++) {
+      const HostSharedPtr& sampled_host = hosts_to_use[(rand_idx + i) % hosts_to_use.size()];
+
       if (candidate_host == nullptr) {
         // Make a first choice to start the comparisons.
         candidate_host = sampled_host;
@@ -1318,6 +1323,7 @@ HostConstSharedPtr LeastRequestLoadBalancer::unweightedHostPick(const HostVector
     return candidate_host;
   }
 
+  // Use random selection (not full scan)
   for (uint32_t choice_idx = 0; choice_idx < choice_count_; ++choice_idx) {
     const int rand_idx = random_.random() % hosts_to_use.size();
     const HostSharedPtr& sampled_host = hosts_to_use[rand_idx];

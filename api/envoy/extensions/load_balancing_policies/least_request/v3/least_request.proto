@@ -60,8 +60,9 @@ message LeastRequest {
   common.v3.LocalityLbConfig locality_lb_config = 4;
 
   // Configuration for performing full scan on the list of hosts.
-  // If this configuration is set, or if choice_count >= the number of hosts,
-  // Envoy will use a select the host with the least requests from a full scan rather than
-  // choice_count random choices.
+  // If this configuration is set, when selecting the host a full scan on the list hosts will be
+  // used to select the one with least requests instead of using random choices.
+  // It uses a random index to start scan to avoid selecting the same host when the number of
+  // requests are the same.
   google.protobuf.BoolValue enable_full_scan = 5;
 }
