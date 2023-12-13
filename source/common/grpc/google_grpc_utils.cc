@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <grpc/compression.h>
 #include <string>
 
 #include "envoy/grpc/google_grpc_creds.h"
@@ -129,6 +130,10 @@ GoogleGrpcUtils::channelArgsFromConfig(const envoy::config::core::v3::GrpcServic
       PANIC_DUE_TO_PROTO_UNSET;
     }
   }
+
+  // @tallen hax.
+  args.SetCompressionAlgorithm(GRPC_COMPRESS_GZIP);
+
   return args;
 }
 
