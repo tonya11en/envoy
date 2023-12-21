@@ -38,12 +38,6 @@ behavior_changes:
     ``envoy.reloadable_features.grpc_http1_reverse_bridge_handle_empty_response`` to false.
 
 minor_behavior_changes:
-- area: upstream
-  change: |
-    Fixed a reported issue (https://github.com/envoyproxy/envoy/issues/11004) that causes the Least
-    Request load balancer policy to be unfair when the number of hosts are very small, when the number
-    of hosts is smaller than the choice_count, instead of randomly selection hosts from the list, we
-    perform a full scan on it to choose the host with least requests.
 # *Changes that may cause incompatibilities for some users, but should not for most*
 - area: golang
   change: |
@@ -79,6 +73,12 @@ minor_behavior_changes:
 - area: admin
   change: |
     Switch no admin ``warning`` -> ``info``.
+- area: upstream
+  change: |
+    Fixed a reported issue (https://github.com/envoyproxy/envoy/issues/11004) that causes the Least
+    Request load balancer policy to be unfair when the number of hosts are very small, when the number
+    of hosts is smaller than the choice_count, instead of randomly selection hosts from the list, we
+    perform a full scan on it to choose the host with least requests.
 
 bug_fixes:
 # *Changes expected to improve the state of the world and are unlikely to have negative effects*
@@ -203,12 +203,10 @@ new_features:
   change: |
     Implmented API :ref:`drop_overloads<envoy_v3_api_field_config.endpoint.v3.ClusterLoadAssignment.Policy.drop_overloads>`
     which can be used to drop certain percentage of traffic from Envoy.
-
 - area: stats
   change: |
     added :ref:`per_endpoint_stats <envoy_v3_api_field_config.cluster.v3.TrackClusterStats.per_endpoint_stats>` to get some metrics
     for each endpoint in a cluster.
-
 - area: jwt
   change: |
     The jwt filter can now serialize non-primitive custom claims when maping claims to headers.
