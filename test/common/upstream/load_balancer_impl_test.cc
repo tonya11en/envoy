@@ -2787,20 +2787,20 @@ TEST_P(LeastRequestLoadBalancerTest, SingleHost) {
 
   // Host weight is 1.
   {
-    EXPECT_CALL(random_, random()).WillOnce(Return(0));
+    EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(2));
     EXPECT_EQ(hostSet().healthy_hosts_[0], lb_.chooseHost(nullptr));
   }
 
   // Host weight is 100.
   {
-    EXPECT_CALL(random_, random()).WillOnce(Return(0));
+    EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(2));
     EXPECT_EQ(hostSet().healthy_hosts_[0], lb_.chooseHost(nullptr));
   }
 
   HostVector empty;
   {
     hostSet().runCallbacks(empty, empty);
-    EXPECT_CALL(random_, random()).WillOnce(Return(0));
+    EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(2));
     EXPECT_EQ(hostSet().healthy_hosts_[0], lb_.chooseHost(nullptr));
   }
 
@@ -2823,12 +2823,12 @@ TEST_P(LeastRequestLoadBalancerTest, Normal) {
 
   hostSet().healthy_hosts_[0]->stats().rq_active_.set(1);
   hostSet().healthy_hosts_[1]->stats().rq_active_.set(2);
-  EXPECT_CALL(random_, random()).WillOnce(Return(0));
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(2));
   EXPECT_EQ(hostSet().healthy_hosts_[0], lb_.chooseHost(nullptr));
 
   hostSet().healthy_hosts_[0]->stats().rq_active_.set(2);
   hostSet().healthy_hosts_[1]->stats().rq_active_.set(1);
-  EXPECT_CALL(random_, random()).WillOnce(Return(0));
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(2));
   EXPECT_EQ(hostSet().healthy_hosts_[1], lb_.chooseHost(nullptr));
 }
 
@@ -2890,9 +2890,9 @@ TEST_P(LeastRequestLoadBalancerTest, PNC) {
       .WillOnce(Return(2));
   EXPECT_EQ(hostSet().healthy_hosts_[3], lb_4.chooseHost(nullptr));
 
-  // When the number of hosts is smaller or equal to the number of choices we don't call
-  // random() since we do a full table scan.
-  EXPECT_CALL(random_, random()).WillOnce(Return(9999));
+  // When the number of hosts is smaller or equal to the number of choices,
+  // we call random() once to select the initial index for a full scan.
+  EXPECT_CALL(random_, random()).WillOnce(Return(0)).WillOnce(Return(0));
   EXPECT_EQ(hostSet().healthy_hosts_[3], lb_6.chooseHost(nullptr));
 }
 
