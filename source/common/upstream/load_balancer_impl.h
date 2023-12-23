@@ -711,8 +711,7 @@ public:
                 ? absl::optional<Runtime::Double>(
                       {least_request_config.active_request_bias(), runtime})
                 : absl::nullopt),
-        enable_full_scan_(
-            PROTOBUF_GET_WRAPPED_OR_DEFAULT(least_request_config, enable_full_scan, false)) {
+        selection_method_(least_request_config.selection_method()) {
     initialize();
   }
 
@@ -748,7 +747,7 @@ private:
   double active_request_bias_{};
 
   const absl::optional<Runtime::Double> active_request_bias_runtime_;
-  const bool enable_full_scan_{};
+  const envoy::extensions::load_balancing_policies::least_request::v3::LeastRequest_SelectionMethod selection_method_{};
 };
 
 /**

@@ -2915,7 +2915,8 @@ TEST_P(LeastRequestLoadBalancerTest, FullScan) {
   envoy::extensions::load_balancing_policies::least_request::v3::LeastRequest lr_lb_config;
   lr_lb_config.mutable_choice_count()->set_value(2);
   // Enable full table scan on hosts.
-  lr_lb_config.mutable_enable_full_scan()->set_value(true);
+  lr_lb_config.set_selection_method(
+    envoy::extensions::load_balancing_policies::least_request::v3::LeastRequest_SelectionMethod_FULL_SCAN);
   common_config_.mutable_healthy_panic_threshold()->set_value(0);
 
   LeastRequestLoadBalancer lb_2{priority_set_, nullptr, stats_,       runtime_,
@@ -2956,7 +2957,8 @@ TEST_P(LeastRequestLoadBalancerTest, FullScanReturnDifferentHostWhenRequestsAreE
   envoy::extensions::load_balancing_policies::least_request::v3::LeastRequest lr_lb_config;
   lr_lb_config.mutable_choice_count()->set_value(2);
   // Enable full table scan on hosts.
-  lr_lb_config.mutable_enable_full_scan()->set_value(true);
+  lr_lb_config.set_selection_method(
+    envoy::extensions::load_balancing_policies::least_request::v3::LeastRequest_SelectionMethod_FULL_SCAN);
   common_config_.mutable_healthy_panic_threshold()->set_value(0);
 
   LeastRequestLoadBalancer lb{priority_set_, nullptr, stats_,       runtime_,

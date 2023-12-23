@@ -177,12 +177,13 @@ removed_config_or_runtime:
 new_features:
 - area: upstream
   change: |
-    Added :ref:`enable_full_scan <envoy_v3_api_msg_extensions.load_balancing_policies.least_request.v3.LeastRequest>`
-    option to the least requested load balancer. If set to true, or if 
-    <envoy_v3_api_msg_extensions.load_balancing_policies.least_request.v3.LeastRequest>`
+    Added :ref:`selection_method <envoy_v3_api_msg_extensions.load_balancing_policies.least_request.v3.LeastRequest>`
+    option to the least request load balancer. If set to FULL_SCAN, or if 
+    :ref:`choice_count <envoy_v3_api_msg_extensions.load_balancing_policies.least_request.v3.LeastRequest>`
     is greater than or equal to the number of hosts,
-    Envoy will select a host from a full scan rather than from :ref:`choice_count
-    <envoy_v3_api_msg_extensions.load_balancing_policies.least_request.v3.LeastRequest>` random choices.
+    Envoy will select the host with the fewest active requests from a full scan rather than from
+    :ref:`choice_count <envoy_v3_api_msg_extensions.load_balancing_policies.least_request.v3.LeastRequest>`
+    random choices.
 - area: composite filter
   change: |
     added :ref:`ExtensionConfiguration discovery service<envoy_v3_api_file_envoy/service/extension/v3/config_discovery.proto>` support for
