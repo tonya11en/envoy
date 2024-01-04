@@ -1,4 +1,5 @@
 #include "source/common/upstream/edf_scheduler.h"
+#include "test/test_common/utility.h"
 
 #include "gtest/gtest.h"
 
@@ -222,6 +223,68 @@ TEST_F(EdfSchedulerTest, EqualityAfterCreateWithPicks) {
 
     compareEdfScehdulers(sched1, sched2);
   }
+}
+
+void firstPickTest(int iterations) {
+  std::cout << "Testing first picks. iters=" << iterations << "\n";
+
+  TestRandomGenerator rand;
+
+  std::vector<std::shared_ptr<int>> entries{
+      std::make_shared<int>(1337),
+      std::make_shared<int>(1338),
+  };
+
+  int64_t total_picks = 0;
+  std::unordered_map<int, int> s1_picks, s2_picks;
+
+  constexpr double w1 = 25.0;
+  constexpr double w2 = 75.0;
+  auto calc_weight = [](const int& x) -> double {
+    if (x == 1337) {
+      return w1;
+    }
+    return w2;
+  };
+
+  for (int ii = 0; ii < iterations; ++ii) {
+    ++total_picks;
+    uint32_t r = rand.random();
+
+    EdfScheduler<int> s1;
+    s1.add(calc_weight(*entries[0]), entries[0]);
+    s1.add(calc_weight(*entries[1]), entries[1]);
+
+    auto s2 = EdfScheduler<int>::createWithPicks(entries, calc_weight, r);
+
+    s1_picks[*s1.pickAndAdd(calc_weight)]++;
+    s2_picks[*s2.pickAndAdd(calc_weight)]++;
+  }
+
+  std::cout << "unrotated EDF:\n";
+  for (const auto& it : s1_picks) {
+    std::cout << it.first << ": " << 100 * static_cast<double>(it.second) / total_picks << "%\n";
+  }
+
+  std::cout << std::endl;
+  std::cout << "rotated EDF:\n";
+  for (const auto& it : s2_picks) {
+    const double expected = calc_weight(it.first);
+    const double observed = 100 * static_cast<double>(it.second) / total_picks;
+    const double error = 100 * (observed - expected) / expected;
+    std::cout << it.first << ":\n"
+              << "\tobserved: " << observed << "%\n"
+              << "\texpected: " << expected << "%\n"
+              << "\trelative_error: " << error << "%\n";
+  }
+  std::cout << std::endl;
+}
+
+TEST_F(EdfSchedulerTest, EdfHax) {
+  firstPickTest(1000);
+  firstPickTest(10000);
+  firstPickTest(100000);
+  firstPickTest(1000000);
 }
 
 } // namespace Upstream
