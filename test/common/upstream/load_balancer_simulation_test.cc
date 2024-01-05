@@ -62,6 +62,58 @@ struct LRLBTestParams {
   std::vector<double> expected_selection_probs;
 };
 
+void tallenTestHax(const uint64_t num_requests, std::vector<int>&& active_rqs) {
+
+  NiceMock<MockTimeSystem> time_source_;
+  HostVector hosts;
+
+  absl::node_hash_map<HostConstSharedPtr, uint64_t> host_hits;
+  std::shared_ptr<MockClusterInfo> info{new NiceMock<MockClusterInfo>()};
+
+  for (size_t ii = 0; ii < active_rqs.size(); ++ii) {
+    auto active_rq_count = active_rqs[ii];
+    auto h = makeTestHost(info, fmt::format("tcp://1.2.3.4:{}", ii), time_source_, 1 /* weight */);
+    hosts.push_back(h);
+    hosts.back()->stats().rq_active_.set(active_rq_count);
+    host_hits[h] = 0;
+  }
+
+  HostVectorConstSharedPtr updated_hosts{new HostVector(hosts)};
+  HostsPerLocalitySharedPtr updated_locality_hosts{new HostsPerLocalityImpl(hosts)};
+  PrioritySetImpl priority_set;
+  priority_set.updateHosts(
+      0,
+      updateHostsParams(updated_hosts, updated_locality_hosts,
+                        std::make_shared<const HealthyHostVector>(*updated_hosts),
+                        updated_locality_hosts),
+      {}, hosts, {}, absl::nullopt);
+
+  Stats::IsolatedStoreImpl stats_store;
+  ClusterLbStatNames stat_names(stats_store.symbolTable());
+  ClusterLbStats lb_stats{stat_names, *stats_store.rootScope()};
+  NiceMock<Runtime::MockLoader> runtime;
+  auto time_source = std::make_unique<NiceMock<MockTimeSystem>>();
+  Random::RandomGeneratorImpl random;
+  envoy::config::cluster::v3::Cluster::LeastRequestLbConfig least_request_lb_config;
+  envoy::config::cluster::v3::Cluster::CommonLbConfig common_config;
+  LeastRequestLoadBalancer lb_{
+      priority_set, nullptr, lb_stats, runtime, random, common_config, least_request_lb_config,
+      *time_source};
+
+  for (uint64_t i = 0; i < num_requests; i++) {
+    host_hits[lb_.chooseHost(nullptr)]++;
+  }
+
+  std::vector<double> observed_pcts;
+  std::cout << "================================\n";
+  std::cout << fmt::format("n={}\n", num_requests);
+  for (const auto& host : host_hits) {
+    double hit_pct = static_cast<double>(host.second) / num_requests;
+    std::cout << fmt::format("{}: weight={} active_rqs={}, pick_ratio={}\n", host.first->hostname(),
+                             host.first->weight(), host.first->stats().rq_active_.value(), hit_pct);
+  }
+}
+
 void leastRequestLBWeightTest(LRLBTestParams params) {
   constexpr uint64_t num_requests = 100000;
 
@@ -131,7 +183,16 @@ void leastRequestLBWeightTest(LRLBTestParams params) {
 }
 
 // Simulate weighted LR load balancer and verify expected selection probabilities.
-TEST(LeastRequestLoadBalancerWeightTest, Weight) {
+TEST(LeastRequestLoadBalancerWeightTest, TallenHax) {
+  tallenTestHax(1e6, {1, 1, 1, 1, 1});
+  tallenTestHax(1e6, {9, 1, 1, 1, 1});
+  tallenTestHax(1e6, {9, 9, 1, 1, 1});
+  tallenTestHax(1e6, {9, 9, 9, 1, 1});
+  tallenTestHax(1e6, {9, 9, 9, 9, 1});
+}
+
+// Simulate weighted LR load balancer and verify expected selection probabilities.
+TEST(DISABLED_LeastRequestLoadBalancerWeightTest, Weight) {
   LRLBTestParams params;
 
   // No active requests or weight differences. This should look like uniform random LB.

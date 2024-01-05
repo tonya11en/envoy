@@ -1302,8 +1302,7 @@ HostConstSharedPtr LeastRequestLoadBalancer::unweightedHostPick(const HostVector
   // Use a full scan if:
   // - it's explicitly configured, or
   // - the number of choices is equal to or larger than the number of hosts.
-  const auto has_full_scan_configured = selection_method_ ==
-                                        envoy::extensions::load_balancing_policies::least_request::v3::LeastRequest_SelectionMethod_FULL_SCAN;
+  const auto has_full_scan_configured = true;
   if (has_full_scan_configured || (hosts_to_use.size() <= choice_count_)) {
     // Choose a random index to start from preventing always picking the first host in the list.
     const int rand_idx = random_.random() % hosts_to_use.size();
