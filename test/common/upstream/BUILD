@@ -541,6 +541,7 @@ envoy_cc_test(
         ":utility_lib",
         ":test_local_address_selector",
         "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
+        "//source/common/network:upstream_local_address_override_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/config/endpoint/v3:pkg_cc_proto",
         "//envoy/api:api_interface",

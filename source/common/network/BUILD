@@ -665,3 +665,13 @@ envoy_cc_library(
         "//envoy/network:filter_interface",
     ],
 )
+
+envoy_cc_library(
+    name = "upstream_local_address_override_lib",
+    hdrs = ["upstream_local_address_override.h"],
+    deps = [
+        "//envoy/network:address_interface",
+        ":connection_socket_lib",
+        "//envoy/stream_info:filter_state_interface",
+    ],
+)

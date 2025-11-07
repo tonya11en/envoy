@@ -42,6 +42,7 @@
 #include "source/common/http/http1/codec_stats.h"
 #include "source/common/http/http2/codec_stats.h"
 #include "source/common/http/utility.h"
+#include "source/common/network/upstream_local_address_override.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/filter_state_proxy_info.h"
 #include "source/common/network/happy_eyeballs_connection_impl.h"
@@ -65,6 +66,40 @@
 namespace Envoy {
 namespace Upstream {
 namespace {
+
+// Returns modified upstream local address with overrides from the FilterState.
+UpstreamLocalAddress applyFilterStateOverrides(UpstreamLocalAddress local_address,
+                                               const StreamInfo::FilterState::Objects& objs) {
+  const auto override_key = UpstreamBindAddressOverride::key();
+
+  // TODO: Check if the objects are valid...
+
+  std::shared_ptr<StreamInfo::FilterState::Object> fsobj;
+  for (const auto& filter_obj : objs) {
+    if (filter_obj.name_ == override_key) {
+      fsobj = filter_obj.data_;
+      break;
+    }
+  }
+
+  if (fsobj == nullptr) {
+    return local_address;
+  }
+
+  auto address_override = dynamic_cast<UpstreamBindAddressOverride*>(fsobj.get());
+
+  if (address_override && (address_override->addr_port || address_override->network_namespace)) {
+    auto netns = address_override->network_namespace.has_value()
+                     ? address_override->network_namespace.value()
+                     : local_address.address_->networkNamespace();
+    local_address.address_ = Network::Utility::parseInternetAddressAndPortNoThrow(
+        address_override->addr_port.value_or(local_address.address_->asString()), true /* v6only */,
+        netns);
+  }
+
+  return local_address;
+}
+
 const envoy::config::cluster::v3::UpstreamConnectionOptions::HappyEyeballsConfig&
 defaultHappyEyeballsConfig() {
   CONSTRUCT_ON_FIRST_USE(
@@ -638,6 +673,12 @@ Host::CreateConnectionData HostImplBase::createConnection(
   if (proxy_address.has_value()) {
     auto upstream_local_address = source_address_selector->getUpstreamLocalAddress(
         address, options, makeOptRefFromPtr(transport_socket_options.get()));
+
+    if (transport_socket_options) {
+      upstream_local_address = applyFilterStateOverrides(
+          upstream_local_address, transport_socket_options->downstreamSharedFilterStateObjects());
+    }
+
     ENVOY_LOG(debug, "Connecting to configured HTTP/1.1 proxy at {}",
               proxy_address.value()->asString());
     connection = dispatcher.createClientConnection(
@@ -659,6 +700,11 @@ Host::CreateConnectionData HostImplBase::createConnection(
   } else {
     auto upstream_local_address = source_address_selector->getUpstreamLocalAddress(
         address, options, makeOptRefFromPtr(transport_socket_options.get()));
+
+    if (transport_socket_options) {
+      upstream_local_address = applyFilterStateOverrides(
+          upstream_local_address, transport_socket_options->downstreamSharedFilterStateObjects());
+    }
     connection = dispatcher.createClientConnection(
         address, upstream_local_address.address_,
         socket_factory.createTransportSocket(transport_socket_options, host),

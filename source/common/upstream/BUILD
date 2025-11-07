@@ -392,6 +392,7 @@ envoy_cc_library(
         ":health_checker_lib",
         # TODO(mattklein123): Move the clusters to extensions so they can be compiled out.
         ":upstream_includes",
+        "//source/common/network:upstream_local_address_override_lib",
         ":transport_socket_match_lib",
         "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",

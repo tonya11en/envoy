@@ -20,6 +20,7 @@
 #include "envoy/upstream/upstream.h"
 
 #include "source/common/config/metadata.h"
+#include "source/common/network/upstream_local_address_override.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/resolver_impl.h"
 #include "source/common/network/transport_socket_options_impl.h"
@@ -2305,6 +2306,12 @@ TEST_F(HostImplTest, HealthcheckHostname) {
       info, "", *Network::Utility::resolveUrl("tcp://1.2.3.4:80"), nullptr, nullptr,
       std::make_shared<const envoy::config::core::v3::Locality>(), config, 1);
   EXPECT_EQ("foo", descr->hostnameForHealthChecks());
+}
+
+TEST_F(HostImplTest, UpstreamAddressOverride) {
+  //
+  // TODO
+  //
 }
 
 class StaticClusterImplTest : public testing::Test, public UpstreamImplTestBase {};

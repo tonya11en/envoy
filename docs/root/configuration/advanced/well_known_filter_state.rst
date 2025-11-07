@@ -84,6 +84,13 @@ The following lists the filter state object keys used by the Envoy extensions:
 ``envoy.network.network_namespace``
   Contains the value of the downstream connection's Linux network namespace if it differs from the default.
 
+``envoy.upstream.local_address_selector_override.netns``
+  Overrides :ref:`source address <envoy_v3_api_field_config.core.v3.BindConfig.source_address>`
+  chosen by the local address selector. Only specified fields will be overridden:
+
+  * ``address``: The address and port to bind to as a string (e.g. "0.0.0.0:0").
+  * ``netns``: Specifies the network namespace filepath of the bind address.
+
 Filter state object fields
 --------------------------
 
