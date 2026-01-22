@@ -58,8 +58,11 @@ new_features:
     Added support for MCP prompt methods ``prompts/list`` and ``prompts/get``.
 - area: formatter
   change: |
-    Extended ``*_WITHOUT_PORT`` address formatters to accept an optional ``MASK_PREFIX_LEN`` parameter that masks IP addresses
+    extended ``*_WITHOUT_PORT`` address formatters to accept an optional ``MASK_PREFIX_LEN`` parameter that masks IP addresses
     and returns them in CIDR notation (e.g., ``%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT(16)%`` returns ``10.1.0.0/16`` for
     client IP ``10.1.10.23``).
+- area: transport_sockets
+  change: |
+    Added generic composite transport socket (:ref:`envoy.transport_sockets.composite <extension_envoy.transport_sockets.composite>`) to enable delegation of I/O operations to nested transport sockets.
 
 deprecated:

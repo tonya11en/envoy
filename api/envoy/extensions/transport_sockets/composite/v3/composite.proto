@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package envoy.extensions.transport_sockets.composite.v3;
+
+import "envoy/config/core/v3/base.proto";
+import "udpa/annotations/status.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.transport_sockets.composite.v3";
+option java_outer_classname = "CompositeProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/composite/v3;compositev3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// [#protodoc-title: Composite transport socket]
+// [#extension: envoy.transport_sockets.composite]
+
+// Configuration for the Composite transport socket.
+// This transport socket wraps two other transport sockets: an "outer" socket and an "inner" socket.
+// The outer socket is used to establish the connection (e.g., TLS), and the inner socket
+// is nested within it (e.g., HTTP/1.1 proxy authentication/tunneling).
+message CompositeTransportSocket {
+  // The outer transport socket configuration.
+  // This socket wraps the underlying connection.
+  config.core.v3.TransportSocket outer_transport_socket = 1 [(validate.rules).message = {required: true}];
+
+  // The inner transport socket configuration.
+  // This socket is wrapped by the outer transport socket.
+  config.core.v3.TransportSocket inner_transport_socket = 2 [(validate.rules).message = {required: true}];
+}

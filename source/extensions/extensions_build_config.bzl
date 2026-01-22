@@ -349,6 +349,7 @@ EXTENSIONS = {
     "envoy.transport_sockets.tcp_stats":                "//source/extensions/transport_sockets/tcp_stats:config",
     "envoy.transport_sockets.tls":                      "//source/extensions/transport_sockets/tls:config",
     "envoy.transport_sockets.internal_upstream":        "//source/extensions/transport_sockets/internal_upstream:config",
+    "envoy.transport_sockets.composite":                "//source/extensions/transport_sockets/composite:config",
 
     #
     # Retry host predicates
