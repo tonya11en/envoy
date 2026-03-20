@@ -32,7 +32,7 @@ This roadmap outlines the phases for creating a comprehensive developer guide fo
 3. The centralized "how-to" entry point is established and links to unit testing resources.
 **Plans**:
 - [x] 2-01-PLAN.md — Foundation & Mock Catalog.
-- [ ] 2-02-PLAN.md — Gold Standard Annotations & Troubleshooting.
+- [x] 2-02-PLAN.md — Gold Standard Annotations & Troubleshooting.
 
 ### Phase 3: Integration Testing & Case Studies
 **Goal**: Developers can write complex integration tests and learn from high-quality existing examples.

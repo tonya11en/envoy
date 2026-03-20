@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-20T21:26:57.251Z"
+last_updated: "2026-03-20T21:28:39.856Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State: Envoy Developer Testing Documentation
@@ -37,6 +37,8 @@ Plan: 2 of 2
 - Combined unit testing and mocking best practices into Phase 2 for a deep dive into C++ testing.
 - Placed integration testing and case studies together in Phase 3 as they both involve more complex, end-to-end scenarios.
 - Reserved Phase 4 for verification and refinement to ensure the documentation meets Envoy's standards.
+- [Phase 2]: Selected Http filter manager as a core example for filter lifecycle tests.
+- [Phase 2]: Used a Symptom -> Cause -> Fix format for troubleshooting documentation.
 
 ### Todos
 
