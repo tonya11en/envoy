@@ -13,6 +13,25 @@ Envoy unit tests are typically located in the ``test/`` directory, mirroring the
 
 All unit tests are built and run using Bazel. Refer to the :doc:`Bazel Testing Guide <bazel>` for information on the macros used to define tests (e.g., ``envoy_cc_test``).
 
+Common Includes & Dependencies
+------------------------------
+
+When writing unit tests for Envoy, you will typically need to include the following headers and their corresponding Bazel targets in your ``BUILD`` file:
+
++-------------------------------------+-------------------------------------+---------------------------------------------------------+
+| **Header**                          | **Bazel Target**                    | **Purpose**                                             |
++=====================================+=====================================+=========================================================+
+| ``test/test_common/utility.h``      | ``//test/test_common:utility_lib``  | Essential test utilities (e.g., ``EXPECT_THROW_WITH_MESSAGE``) |
++-------------------------------------+-------------------------------------+---------------------------------------------------------+
+| ``test/mocks/http/mocks.h``         | ``//test/mocks/http:http_mocks``    | Mocks for HTTP codecs, streams, and filters.            |
++-------------------------------------+-------------------------------------+---------------------------------------------------------+
+| ``test/mocks/network/mocks.h``      | ``//test/mocks/network:network_mocks``| Mocks for network connections, listeners, and filters.  |
++-------------------------------------+-------------------------------------+---------------------------------------------------------+
+| ``test/mocks/upstream/mocks.h``     | ``//test/mocks/upstream:upstream_mocks``| Mocks for clusters, hosts, and load balancers.        |
++-------------------------------------+-------------------------------------+---------------------------------------------------------+
+| ``test/mocks/stats/mocks.h``        | ``//test/mocks/stats:stats_mocks``  | Mocks for stat stores and counters.                   |
++-------------------------------------+-------------------------------------+---------------------------------------------------------+
+
 .. _unit_testing_mock_selection:
 
 Mock Selection Strategy (Strictness Baseline)
@@ -21,7 +40,7 @@ Mock Selection Strategy (Strictness Baseline)
 Choosing between ``StrictMock``, ``NiceMock``, and ``Mock`` is a critical part of writing maintainable tests. Envoy follows a "Strictness Baseline" to ensure tests are neither too fragile nor too permissive.
 
 StrictMock (Default for SUT Collaborators)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 By default, use ``StrictMock`` for the **System Under Test (SUT)** and its **direct collaborators**.
 
@@ -29,7 +48,7 @@ By default, use ``StrictMock`` for the **System Under Test (SUT)** and its **dir
 *   **Usage**: ``testing::StrictMock<MockClass> collaborator;``
 
 NiceMock (For "Noise" Dependencies)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Use ``NiceMock`` for dependencies that are necessary for the SUT to function but whose specific interactions are not being tested in the current scope. These are often referred to as "noise" dependencies.
 
@@ -47,7 +66,7 @@ Mock Injection Patterns
 Mocks should be injected into the SUT using one of the following patterns:
 
 Constructor Injection
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 The most common pattern. Pass mock objects (usually by reference or shared pointer) to the SUT's constructor.
 
@@ -58,7 +77,7 @@ The most common pattern. Pass mock objects (usually by reference or shared point
   SUT sut(runtime, collaborator);
 
 Factory Injection
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 For dependencies created at runtime, use a factory interface that can be mocked to return your mock objects.
 
@@ -68,7 +87,7 @@ Test Fixture Design
 To reduce boilerplate and promote reuse, Envoy uses Mixins and Base classes for complex test setups.
 
 Mixin and Base Classes
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 
 A common pattern is to define a ``*Mixin`` class that implements a configuration interface (e.g., ``ConnectionManagerConfig``) and contains all the necessary mocks and setup logic.
 
@@ -101,7 +120,7 @@ Gold Standard Examples
 Envoy's codebase contains thousands of tests. The following examples are considered "Gold Standard" because they demonstrate clean, maintainable, and effective testing patterns.
 
 1. Simple State Validation: IsolatedStoreImpl
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **File**: `test/common/stats/isolated_store_impl_test.cc <https://github.com/envoyproxy/envoy/blob/main/test/common/stats/isolated_store_impl_test.cc>`_
 
@@ -130,7 +149,7 @@ This test is an excellent example of testing a component with minimal dependenci
 * **Direct Assertion**: Uses ``EXPECT_EQ`` and ``ASSERT_TRUE`` to verify the exact state of the system after each operation.
 
 2. Complex State Machines: Connection Manager
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **File**: `test/common/http/conn_manager_impl_test.cc <https://github.com/envoyproxy/envoy/blob/main/test/common/http/conn_manager_impl_test.cc>`_
 
@@ -163,7 +182,7 @@ The HttpConnectionManager (HCM) is one of Envoy's most complex components. Its t
 * **Protocol-Level Simulation**: Instead of calling methods on the HCM directly, the test simulates data arriving over the network via the ``codec_`` mock, exercising the full state machine.
 
 3. Filter Lifecycle: Filter Manager
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **File**: `test/common/http/filter_manager_test.cc <https://github.com/envoyproxy/envoy/blob/main/test/common/http/filter_manager_test.cc>`_
 

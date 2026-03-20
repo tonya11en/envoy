@@ -40,6 +40,29 @@ The following table maps core interfaces to their corresponding mock classes.
      - ``test/mocks/stats/mocks.h``
      - ``test/common/tracing/tracer_impl_test.cc``
 
+Mocking Reference (Bazel Targets)
+---------------------------------
+
+The following table provides a quick reference for common Envoy mocks and their associated Bazel targets.
+
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| **Component to Mock**       | **Header File**                     | **Bazel Target**                                        |
++=============================+=====================================+=========================================================+
+| HTTP Codecs/Streams/Filters | ``test/mocks/http/mocks.h``         | ``//test/mocks/http:http_mocks``                        |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| Network Connections/Filters | ``test/mocks/network/mocks.h``      | ``//test/mocks/network:network_mocks``                  |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| Upstream Clusters/Hosts     | ``test/mocks/upstream/mocks.h``     | ``//test/mocks/upstream:upstream_mocks``                |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| Event Dispatchers/Timers    | ``test/mocks/event/mocks.h``        | ``//test/mocks/event:event_mocks``                      |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| Statistics Store            | ``test/mocks/stats/mocks.h``        | ``//test/mocks/stats:stats_mocks``                      |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| Runtime Loader              | ``test/mocks/runtime/mocks.h``      | ``//test/mocks/runtime:runtime_mocks``                  |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+| API / Filesystem            | ``test/mocks/api/mocks.h``          | ``//test/mocks/api:api_mocks``                          |
++-----------------------------+-------------------------------------+---------------------------------------------------------+
+
 Finding Mocks
 -------------
 

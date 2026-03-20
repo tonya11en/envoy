@@ -48,22 +48,22 @@ The Standard Sequence
 
 A typical integration test follows a standard initialization and execution sequence:
 
-1. **initialize()**: This method starts the fake upstream servers and then launches the Envoy
-   instance with the configured bootstrap and filter chain.
-2. **makeHttpConnection()**: Establishes a connection from the **Codec Client** to Envoy's
-   listening port.
-3. **sendRequest()**: Initiates test traffic by sending headers (and optionally a body) from
-   the client through Envoy to the upstream.
+1. **Test Constructor**: The test fixture is created. This is where you set up any initial state and define configuration modifiers.
+2. **Config Modification**: Use ``config_helper_`` to alter the bootstrap configuration before the server starts.
+3. **initialize()**: This critical method starts the fake upstream servers and then launches the Envoy instance with the configured bootstrap and filter chain. **No traffic can be sent before this call.**
+4. **makeHttpConnection()**: Establishes a connection from the **Codec Client** to Envoy's listening port.
+5. **sendRequest()**: Initiates test traffic by sending headers (and optionally a body) from the client through Envoy to the upstream.
+
+.. note::
+   Always ensure that any ``addConfigModifier`` or ``config_helper_`` calls are made **before** calling ``initialize()``.
 
 Configuration & Startup
 -----------------------
 
-Integration tests often require modifying the default Envoy configuration to test specific
-features or filter behaviors. Configuration changes **must** happen before calling
-``initialize()``.
+Integration tests often require modifying the default Envoy configuration to test specific features or filter behaviors. Configuration changes **must** happen before calling ``initialize()``.
 
 Config Modification Strategies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There are two primary ways to modify the configuration:
 
@@ -73,7 +73,7 @@ Option A: ConfigHelper
 The ``ConfigHelper`` (available via ``config_helper_``) provides high-level utilities for common
 alterations. It is the preferred method for standard tasks such as:
 
-*  **Adding Filters**: ``config_helper_.prependFilter(config)`` or ``config_helper_.addFilter(config)``.
+*  **Adding Filters**: ``config_helper_.prependFilter(config)`` or ``config_helper_.addFilter(config)``. The ``config`` argument is typically a raw YAML string defining the filter configuration.
 *  **Setting Protocols**: ``config_helper_.setDownstreamProtocol(Http::CodecType::HTTP2)``.
 *  **TLS Configuration**: Using ``ServerSslOptions`` to configure SSL contexts.
 
@@ -92,7 +92,7 @@ underlying Envoy configuration (Bootstrap, HttpConnectionManager, etc.).
    });
 
 Discovery Guidance
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 To find available configuration fields, explore the Proto definitions in the ``api/``
 directory. Each Envoy extension and core component defines its configuration schema using
@@ -105,7 +105,7 @@ The integration framework provides specialized classes for simulating backends (
 and clients (Downstream).
 
 Upstream Types
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 Choosing the right upstream type depends on the level of control your test requires:
 
@@ -117,12 +117,11 @@ Choosing the right upstream type depends on the level of control your test requi
    requests based on pre-defined logic, reducing boilerplate code.
 
 Common Client Methods
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 The ``IntegrationCodecClient`` provides several methods for initiating traffic:
 
-*  **makeHttpConnection(lookupPort("http"))**: Establishes the connection to Envoy. Always
-   use ``lookupPort()`` instead of hardcoded port numbers.
+*  **makeHttpConnection(lookupPort("http"))**: Establishes the connection to Envoy. The name ``"http"`` passed to ``lookupPort()`` must match the name of the listener defined in the bootstrap configuration (defaulting to ``"http"`` in many base fixtures).
 *  **makeRequestWithBody(headers, body)**: Sends a request and returns a handle for
    tracking the response.
 *  **sendRequestAndWaitForResponse(headers, body, ...)**: A unified helper that sends a
