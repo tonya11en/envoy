@@ -10,3 +10,4 @@ This section documents the testing infrastructure, utilities, and practices used
   unit_tests
   utilities
   mock_catalog
+  troubleshooting
