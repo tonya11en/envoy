@@ -44,7 +44,7 @@ This roadmap outlines the phases for creating a comprehensive developer guide fo
 3. The integration testing framework components (e.g., `IntegrationTestServer`) are clearly explained.
 **Plans**:
 - [x] 03-01-PLAN.md — Integration Testing Foundations.
-- [ ] 03-02-PLAN.md — HTTP & Listener Case Studies.
+- [x] 03-02-PLAN.md — HTTP & Listener Case Studies.
 - [ ] 03-03-PLAN.md — TCP Case Study & Entry Point.
 
 ### Phase 4: Review & Refinement

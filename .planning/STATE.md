@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-20T21:50:30.396Z"
+last_updated: "2026-03-20T21:52:36.670Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State: Envoy Developer Testing Documentation
@@ -21,7 +21,7 @@ progress:
 ## Current Position
 
 Phase: 03 (integration-testing-case-studies) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -42,6 +42,8 @@ Plan: 2 of 3
 - [Phase 03]: Created a foundational integration testing guide covering glossary, lifecycle, and upstream patterns.
 - [Phase 03]: Used 'Option A vs Option B' structure for configuration modification.
 - [Phase 03]: Included a 'Common Pitfalls' section to address frequent developer errors.
+- [Phase 03-integration-testing-case-studies]: Used 'Dual Narrative Flow' (D-01, D-02) for both case studies to provide both high-level and component-level context.
+- [Phase 03-integration-testing-case-studies]: Included specific 'Symptom -> Cause -> Fix' troubleshooting tables for each filter type.
 
 ### Todos
 
