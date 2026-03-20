@@ -54,3 +54,46 @@ A typical integration test follows a standard initialization and execution seque
    listening port.
 3. **sendRequest()**: Initiates test traffic by sending headers (and optionally a body) from
    the client through Envoy to the upstream.
+
+Configuration & Startup
+-----------------------
+
+Integration tests often require modifying the default Envoy configuration to test specific
+features or filter behaviors. Configuration changes **must** happen before calling
+``initialize()``.
+
+Config Modification Strategies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are two primary ways to modify the configuration:
+
+Option A: ConfigHelper
+^^^^^^^^^^^^^^^^^^^^^^
+
+The ``ConfigHelper`` (available via ``config_helper_``) provides high-level utilities for common
+alterations. It is the preferred method for standard tasks such as:
+
+*  **Adding Filters**: ``config_helper_.prependFilter(config)`` or ``config_helper_.addFilter(config)``.
+*  **Setting Protocols**: ``config_helper_.setDownstreamProtocol(Http::CodecType::HTTP2)``.
+*  **TLS Configuration**: Using ``ServerSslOptions`` to configure SSL contexts.
+
+Option B: addConfigModifier
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For custom Protobuf tweaks that aren't covered by ``ConfigHelper``'s dedicated methods, use
+``addConfigModifier``. This allows you to provide a lambda that directly manipulates the
+underlying Envoy configuration (Bootstrap, HttpConnectionManager, etc.).
+
+.. code-block:: cpp
+
+   config_helper_.addConfigModifier([&](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
+     // Direct modification of the bootstrap proto
+     bootstrap.mutable_node()->set_id("test_node");
+   });
+
+Discovery Guidance
+~~~~~~~~~~~~~~~~~~
+
+To find available configuration fields, explore the Proto definitions in the ``api/``
+directory. Each Envoy extension and core component defines its configuration schema using
+Protocol Buffers.
