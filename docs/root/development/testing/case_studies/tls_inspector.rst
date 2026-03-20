@@ -36,18 +36,21 @@ filter chain or transport socket is even selected.
 Narrative B: Component-by-Component
 -----------------------------------
 
-### The Test Client (TLS-Enabled)
+The Test Client (TLS-Enabled)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Unlike basic HTTP tests, the client here must be capable of performing a TLS handshake.
 The test uses ``Ssl::createClientSslTransportSocketFactory`` to create a real SSL socket
 that sends a valid ClientHello to Envoy.
 
-### Envoy Listener (The Entry Point)
+Envoy Listener (The Entry Point)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The listener is configured with the ``tls_inspector`` filter. Crucially, it also
 defines multiple ``filter_chains`` with varying ``filter_chain_match`` criteria:
 *   **Match by SNI**: Choosing a chain based on the domain requested.
 *   **Match by ALPN**: Choosing a chain based on the protocol (e.g., ``envoyalpn``).
 
-### The Listener Filter Manager
+The Listener Filter Manager
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This component manages the execution and lifecycle of listener filters. In the test
 ``RequestedBufferSizeCanStartBig``, we see how multiple listener filters (like a
 custom ``LargeBufferListenerFilter``) can interact and how the manager handles

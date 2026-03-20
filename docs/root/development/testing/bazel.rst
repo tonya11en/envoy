@@ -7,7 +7,7 @@ Common Tasks
 ------------
 
 Adding a new unit test for an extension
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Use ``envoy_cc_test`` for standard C++ unit tests.
 
@@ -27,35 +27,35 @@ Use ``envoy_cc_test`` for standard C++ unit tests.
 **Canonical Example:** `test/common/common/base64_test.cc <https://github.com/envoyproxy/envoy/blob/main/test/common/common/base64_test.cc>`_
 
 Creating a test library
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Use ``envoy_cc_test_library`` for code that is shared across multiple test targets.
 
 **Canonical Example:** ``//test/test_common:utility_lib``
 
 Defining a mock
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
 Use ``envoy_cc_mock`` to define libraries containing mocks. This macro is a wrapper around ``envoy_cc_test_library`` with PCH (Precompiled Headers) disabled to avoid common mocking issues.
 
 **Canonical Example:** ``//test/mocks/http:http_mocks``
 
 Adding a fuzz test
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 Use ``envoy_cc_fuzz_test`` to define a libFuzzer-based fuzz test.
 
 **Canonical Example:** `test/common/common/base64_fuzz_test.cc <https://github.com/envoyproxy/envoy/blob/main/test/common/common/base64_fuzz_test.cc>`_
 
 Writing a shell test
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 Use ``envoy_sh_test`` for tests written in Bash. If ``coverage = True`` (default), the macro generates a C++ wrapper to ensure the shell test contributes to coverage reports.
 
 **Canonical Example:** `test/server/hot_restart_test.sh <https://github.com/envoyproxy/envoy/blob/main/test/server/hot_restart_test.sh>`_
 
 Adding an integration test
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Integration tests also use ``envoy_cc_test`` but typically depend on integration-specific libraries.
 
@@ -72,17 +72,17 @@ Troubleshooting & Common Errors
 -------------------------------
 
 Visibility
-~~~~~~~~~~
+^^^^^^^^^^
 
 If your test cannot find a header from a library it depends on, check the ``visibility`` of that library in its ``BUILD`` file. Most Envoy libraries are restricted to specific packages.
 
 Dependency Resolution
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 * **deps:** Used for internal Envoy targets.
 * **external_deps:** Used for third-party dependencies defined in ``bazel/repository_locations.bzl``.
 
 Common Sanitizer Issues
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 If a test fails under ASAN but passes normally, it often indicates a memory leak or use-after-free. The macros ensure that ``llvm-symbolizer`` is available in the test environment to provide readable stack traces.

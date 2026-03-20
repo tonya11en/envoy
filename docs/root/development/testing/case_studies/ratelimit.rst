@@ -39,19 +39,22 @@ interplay between multiple upstreams and the filter's asynchronous gRPC logic.
 Narrative B: Component-by-Component
 -----------------------------------
 
-### The Test Client (Downstream)
+The Test Client (Downstream)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The client uses ``IntegrationCodecClient`` to initiate traffic. It is responsible for:
 *   Establishing the connection to Envoy's listener.
 *   Sending HTTP requests with specific headers to trigger rate limiting rules.
 *   Waiting for and validating the final HTTP response (e.g., ``200 OK`` or ``429 Too Many Requests``).
 
-### Envoy (Filter Under Test)
+Envoy (Filter Under Test)
+^^^^^^^^^^^^^^^^^^^^^^^^^
 Envoy is configured with:
 *   A listener containing the RateLimit HTTP filter.
 *   Route configuration that defines rate limit actions (e.g., based on the destination cluster).
 *   A ``ratelimit_cluster`` pointing to the fake gRPC service.
 
-### The RateLimit Upstream (Fake gRPC)
+The RateLimit Upstream (Fake gRPC)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This is a ``FakeUpstream`` configured for HTTP/2 to support gRPC. Unlike the backend,
 it requires manual intervention in the test code:
 *   **Connection Management**: The test must wait for Envoy to connect to it.
@@ -60,7 +63,8 @@ it requires manual intervention in the test code:
 *   **Response Control**: The test manually encodes and sends the gRPC response to
     simulate various service behaviors (OK, Over Limit, Error).
 
-### The Backend Upstream (Target Service)
+The Backend Upstream (Target Service)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In many RateLimit tests, an ``AutonomousUpstream`` is used as the final destination.
 Since the focus is on the RateLimit filter's logic, the backend simply provides a
 valid response once the filter allows the request to pass.

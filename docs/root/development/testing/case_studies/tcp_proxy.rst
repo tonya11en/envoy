@@ -1,7 +1,7 @@
 .. _tcp_proxy_case_study:
 
-TCP Proxy Case Study
-====================
+Case Study: TCP Proxy Integration Test
+======================================
 
 This case study explores the integration testing patterns for raw TCP traffic in Envoy, using the
 TCP Proxy filter as the primary example. Unlike HTTP-based tests that operate on streams and
@@ -35,7 +35,7 @@ The TCP integration framework consists of three primary components, each playing
 in the byte flow.
 
 IntegrationTcpClient (Downstream)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``IntegrationTcpClient`` simulates a raw TCP client. It is responsible for:
 - Initiating the connection to Envoy's listener.
@@ -44,7 +44,7 @@ The ``IntegrationTcpClient`` simulates a raw TCP client. It is responsible for:
   test with asynchronous network events.
 
 Envoy (TCP Proxy)
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 Envoy acts as the intermediary, running the ``TcpProxy`` network filter. Its role is to:
 - Accept the downstream connection.
@@ -53,7 +53,7 @@ Envoy acts as the intermediary, running the ``TcpProxy`` network filter. Its rol
   inspecting the application-level protocol.
 
 FakeRawConnection / FakeUpstream (Upstream)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``FakeUpstream`` serves as the backend service. For TCP tests, it typically provides a
 ``FakeRawConnection`` which allows the test to:

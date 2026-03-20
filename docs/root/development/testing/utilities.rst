@@ -13,7 +13,7 @@ Common/General Utilities
 These utilities provide foundational support for Envoy testing, including configuration loading, protobuf comparison, and time control.
 
 TestUtility
-~~~~~~~~~~~
+^^^^^^^^^^^
 
 The `TestUtility` class (located in `test/test_common/utility.h`) is a central repository for miscellaneous testing helpers.
 
@@ -29,7 +29,7 @@ The `TestUtility` class (located in `test/test_common/utility.h`) is a central r
 **Reference:** `test/test_common/utility.h <https://github.com/envoyproxy/envoy/blob/main/test/test_common/utility.h>`_
 
 SimulatedTimeSystem
-~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 The `SimulatedTimeSystem` (located in `test/test_common/simulated_time_system.h`) is used for deterministic time-based testing. It allows tests to advance time without real-world delays.
 
@@ -44,7 +44,7 @@ Network Utilities
 -----------------
 
 NetworkUtility
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 The `NetworkUtility` (located in `test/test_common/network_utility.h`) provides helpers for network-related testing, such as port management and IP address handling.
 
@@ -59,7 +59,7 @@ Filesystem Utilities
 --------------------
 
 FileSystem
-~~~~~~~~~~
+^^^^^^^^^^
 
 The `FileSystem` abstraction (located in `test/test_common/file_system_for_test.h`) provides a mockable interface for filesystem operations, allowing tests to simulate various disk states and errors.
 
@@ -71,7 +71,7 @@ Integration Testing Helpers
 These helpers are primarily used in the Envoy integration testing framework.
 
 AutonomousUpstream
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 The `AutonomousUpstream` (located in `test/integration/autonomous_upstream.h`) provides a simplified mock upstream that automatically responds to requests with a default 200 OK.
 
@@ -83,7 +83,7 @@ The `AutonomousUpstream` (located in `test/integration/autonomous_upstream.h`) p
 **Reference:** `test/integration/autonomous_upstream.h <https://github.com/envoyproxy/envoy/blob/main/test/integration/autonomous_upstream.h>`_
 
 IntegrationTestServer
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^
 
 The `IntegrationTestServer` (located in `test/integration/integration.h`) provides helpers for interacting with the Envoy server during an integration test.
 

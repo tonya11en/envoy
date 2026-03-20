@@ -12,7 +12,7 @@ Common Failure Modes
 GMock failures are often descriptive, but their verbosity can be overwhelming. This section breaks down the most frequent errors into a "Symptom -> Cause -> Fix" format.
 
 1. Unmatched Call
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 **Symptom**:
 A test fails with a message like:
@@ -29,7 +29,7 @@ The System Under Test (SUT) called a method on a mock object, but no ``EXPECT_CA
 *   **Check Call Count**: If using ``.Times(N)``, verify that the SUT actually calls the method exactly N times.
 
 2. Strictness Violation
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 **Symptom**:
 The test fails with a message indicating an "uninteresting mock function call," and the mock object is a ``StrictMock``.
@@ -43,7 +43,7 @@ You are using ``testing::StrictMock<MockClass>``, which treats any call not expl
 *   **Review Strictness**: Ensure you are following the :ref:`Mock Selection Strategy <unit_testing_mock_selection>`.
 
 3. Unexpected Return (Return value undefined)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Symptom**:
 A crash or a GMock warning: ``The mock function has no default action set, and its return type has no default value.``
@@ -58,7 +58,7 @@ Add a return action to your expectation:
   EXPECT_CALL(*mock, getValue()).WillOnce(Return(42));
 
 4. Memory Leaks in Mocks
-~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Symptom**:
 LSAN (Leak Sanitizer) reports a leak in a test, often pointing to GMock internal structures or the mock object itself.
