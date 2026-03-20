@@ -97,3 +97,51 @@ Discovery Guidance
 To find available configuration fields, explore the Proto definitions in the ``api/``
 directory. Each Envoy extension and core component defines its configuration schema using
 Protocol Buffers.
+
+Upstreams & Clients
+-------------------
+
+The integration framework provides specialized classes for simulating backends (Upstreams)
+and clients (Downstream).
+
+Upstream Types
+~~~~~~~~~~~~~~
+
+Choosing the right upstream type depends on the level of control your test requires:
+
+*  **FakeUpstream (Control)**: Use this when you need precise timing, specific request
+   ordering, or manual response encoding. It requires explicit calls to wait for and handle
+   requests (e.g., ``waitForNextUpstreamRequest()``).
+*  **AutonomousUpstream (Simplicity)**: Ideal for basic success flows or when the exact
+   timing of upstream interaction is not critical. It automatically responds to incoming
+   requests based on pre-defined logic, reducing boilerplate code.
+
+Common Client Methods
+~~~~~~~~~~~~~~~~~~~~~
+
+The ``IntegrationCodecClient`` provides several methods for initiating traffic:
+
+*  **makeHttpConnection(lookupPort("http"))**: Establishes the connection to Envoy. Always
+   use ``lookupPort()`` instead of hardcoded port numbers.
+*  **makeRequestWithBody(headers, body)**: Sends a request and returns a handle for
+   tracking the response.
+*  **sendRequestAndWaitForResponse(headers, body, ...)**: A unified helper that sends a
+   request and waits for the full response, ideal for simple unary flows.
+
+Common Pitfalls
+---------------
+
+When writing integration tests, developers often encounter the following issues:
+
+Content-Length Mismatch
+  **Symptom**: ``waitForEndStream()`` or ``sendRequestAndWaitForResponse()`` times out.
+  **Cause**: The response body length sent from the fake upstream does not match the
+  ``content-length`` header.
+  **Fix**: Ensure that the data size in ``encodeData()`` matches the header value.
+
+Protocol Mismatch
+  **Symptom**: The connection fails or is reset immediately.
+  **Cause**: Inconsistent protocol configuration between the client, Envoy listener, and
+  upstream (e.g., trying to speak HTTP/1 to an HTTP/2 listener).
+  **Fix**: Use ``setDownstreamProtocol()`` and ``setUpstreamProtocol()`` to ensure all
+  components are aligned.
