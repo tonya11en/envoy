@@ -24,7 +24,7 @@
 |-------------|-------|--------|
 | FR-1 | Phase 2 | Complete |
 | FR-2 | Phase 2 | Complete |
-| FR-3 | Phase 3 | Pending |
+| FR-3 | Phase 3 | Complete |
 | FR-4 | Phase 1 | Pending |
 | FR-5 | Phase 3 | Pending |
 | FR-6 | Phase 2 | Complete |
