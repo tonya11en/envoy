@@ -17,6 +17,7 @@ Envoy documentation
   configuration/configuration
   operations/operations
   extending/extending
+  development/index
   api/api
   faq/overview
   version_history/version_history
