@@ -6,7 +6,7 @@ This roadmap outlines the phases for creating a comprehensive developer guide fo
 
 - [x] **Phase 1: Foundations & Bazel (Internal/Build)** - Documenting the Bazel macros and core test utilities.
 - [x] **Phase 2: Unit Testing Deep Dive** - Comprehensive guide on unit testing with GTest/GMock and common mocks.
-- [ ] **Phase 3: Integration Testing & Case Studies** - End-to-end testing guides and detailed walkthroughs of existing tests.
+- [x] **Phase 3: Integration Testing & Case Studies** - End-to-end testing guides and detailed walkthroughs of existing tests. (completed 2026-03-20)
 - [ ] **Phase 4: Review & Refinement** - Peer review and finalizing the documentation structure.
 
 ## Phase Details
@@ -45,7 +45,7 @@ This roadmap outlines the phases for creating a comprehensive developer guide fo
 **Plans**:
 - [x] 03-01-PLAN.md — Integration Testing Foundations.
 - [x] 03-02-PLAN.md — HTTP & Listener Case Studies.
-- [ ] 03-03-PLAN.md — TCP Case Study & Entry Point.
+- [x] 03-03-PLAN.md — TCP Case Study & Entry Point.
 
 ### Phase 4: Review & Refinement
 **Goal**: The documentation is verified for accuracy, consistency, and accessibility.
@@ -63,5 +63,5 @@ This roadmap outlines the phases for creating a comprehensive developer guide fo
 |-------|----------------|--------|-----------|
 | 1: Foundations & Bazel | 1/1 | Completed | Mar 20, 2026 |
 | 2: Unit Testing Deep Dive | 2/2 | Completed | Mar 20, 2026 |
-| 3: Integration Testing & Case Studies | 0/3 | In progress | - |
+| 3: Integration Testing & Case Studies | 3/3 | Completed | Mar 20, 2026 |
 | 4: Review & Refinement | 0/0 | Not started | - |
