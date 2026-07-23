@@ -583,11 +583,8 @@ ListenerManagerImpl::setupSocketFactoryForListener(ListenerImpl& new_listener,
         "Listener {}: reuse port cannot be changed during an update", new_listener.name()));
   }
 
-  if (!existing_listener.hasCompatibleAddress(new_listener)) {
-    RETURN_IF_NOT_OK(setNewOrDrainingSocketFactory(new_listener.name(), new_listener));
-  } else {
-    RETURN_IF_NOT_OK(new_listener.cloneSocketFactoryFrom(existing_listener));
-  }
+  RETURN_IF_NOT_OK(
+      setNewOrDrainingSocketFactory(new_listener.name(), new_listener, &existing_listener));
   return absl::OkStatus();
 }
 
@@ -1201,8 +1198,8 @@ void ListenerManagerImpl::endListenerUpdate(FailureStates&& failure_states) {
   overall_error_state_ = std::move(failure_states);
 }
 
-absl::Status ListenerManagerImpl::setNewOrDrainingSocketFactory(const std::string& name,
-                                                                ListenerImpl& listener) {
+absl::Status ListenerManagerImpl::setNewOrDrainingSocketFactory(
+    const std::string& name, ListenerImpl& listener, const ListenerImpl* existing_listener) {
   if (hasListenerWithDuplicatedAddress(warming_listeners_, listener) ||
       hasListenerWithDuplicatedAddress(active_listeners_, listener)) {
     const std::string message =
@@ -1214,76 +1211,103 @@ absl::Status ListenerManagerImpl::setNewOrDrainingSocketFactory(const std::strin
     return absl::InvalidArgumentError(message);
   }
 
-  // Search through draining listeners to see if there is a listener that has a socket factory for
-  // the same address we are configured for. This is an edge case, but
-  // may happen if a listener is removed and then added back with a same or different name and
-  // intended to listen on the same address. This should work and not fail.
-  const ListenerImpl* draining_listener_ptr = nullptr;
-  auto existing_draining_listener =
-      std::find_if(draining_listeners_.cbegin(), draining_listeners_.cend(),
-                   [&listener](const DrainingListener& draining_listener) {
-                     return draining_listener.listener_->listenSocketFactories()[0]
-                                ->getListenSocket(0)
-                                ->isOpen() &&
-                            listener.hasCompatibleAddress(*draining_listener.listener_);
-                   });
-
-  if (existing_draining_listener != draining_listeners_.cend()) {
-    existing_draining_listener->listener_->debugLog("clones listener sockets");
-    draining_listener_ptr = existing_draining_listener->listener_.get();
-  } else {
-    auto existing_draining_filter_chain = std::find_if(
-        draining_filter_chains_manager_.cbegin(), draining_filter_chains_manager_.cend(),
-        [&listener](const DrainingFilterChainsManager& draining_filter_chain) {
-          return draining_filter_chain.getDrainingListener()
-                     .listenSocketFactories()[0]
-                     ->getListenSocket(0)
-                     ->isOpen() &&
-                 listener.hasCompatibleAddress(draining_filter_chain.getDrainingListener());
-        });
-
-    if (existing_draining_filter_chain != draining_filter_chains_manager_.cend()) {
-      existing_draining_filter_chain->getDrainingListener().debugLog("clones listener socket");
-      draining_listener_ptr = &existing_draining_filter_chain->getDrainingListener();
-    }
-  }
-
-  // TODO(wbpcode): if we cannot clone the socket factory from the draining listener, we should
-  // check the duplicated addresses again the draining listeners to avoid the creation failure
-  // of the sockets.
-  if (draining_listener_ptr != nullptr) {
-    RETURN_IF_NOT_OK(listener.cloneSocketFactoryFrom(*draining_listener_ptr));
-  } else {
-    return createListenSocketFactory(listener);
-  }
-  return absl::OkStatus();
-}
-
-absl::Status ListenerManagerImpl::createListenSocketFactory(ListenerImpl& listener) {
   Network::Socket::Type socket_type = listener.socketType();
   ListenerComponentFactory::BindType bind_type = ListenerComponentFactory::BindType::NoBind;
   if (listener.bindToPort()) {
     bind_type = listener.reusePort() ? ListenerComponentFactory::BindType::ReusePort
                                      : ListenerComponentFactory::BindType::NoReusePort;
   }
+
   absl::Status socket_status = absl::OkStatus();
   TRY_ASSERT_MAIN_THREAD {
     Network::SocketCreationOptions creation_options;
     creation_options.mptcp_enabled_ = listener.mptcpEnabled();
+
+    std::unordered_set<const ListenerImpl*> cloned_listeners;
+    std::map<const ListenerImpl*, std::unordered_set<size_t>> cloned_indices;
+
+    auto try_clone_from_candidate =
+        [&](const ListenerImpl& candidate,
+            const Network::Address::InstanceConstSharedPtr& addr) -> Network::ListenSocketFactoryPtr {
+      if (listener.socketType() != candidate.socketType() ||
+          !ListenerMessageUtil::socketOptionsEqual(listener.configInternal(),
+                                                   candidate.configInternal())) {
+        return nullptr;
+      }
+      const auto& cand_addresses = candidate.addresses();
+      const auto& cand_factories = candidate.getSocketFactories();
+      auto& used_indices = cloned_indices[&candidate];
+
+      for (size_t j = 0; j < cand_addresses.size(); ++j) {
+        if (used_indices.count(j) > 0) {
+          continue;
+        }
+        if (*cand_addresses[j] == *addr) {
+          if (j < cand_factories.size() && cand_factories[j] != nullptr) {
+            auto socket = cand_factories[j]->getListenSocket(0);
+            if (socket != nullptr && !socket->isOpen()) {
+              continue;
+            }
+            used_indices.insert(j);
+            cloned_listeners.insert(&candidate);
+            return cand_factories[j]->clone();
+          }
+        }
+      }
+      return nullptr;
+    };
+
     for (std::vector<Network::Address::InstanceConstSharedPtr>::size_type i = 0;
          i < listener.addresses().size(); i++) {
-      auto factory_or_error = ListenSocketFactoryImpl::create(
-          *factory_, listener.addresses()[i], socket_type, listener.listenSocketOptions(i),
-          listener.name(), listener.tcpBacklogSize(), bind_type, creation_options,
-          server_.options().concurrency());
-      if (!factory_or_error.status().ok()) {
-        socket_status = factory_or_error.status();
-      } else {
-        socket_status = listener.addSocketFactory(std::move(*factory_or_error));
+      const auto& addr = listener.addresses()[i];
+      Network::ListenSocketFactoryPtr socket_factory = nullptr;
+
+      if (existing_listener != nullptr) {
+        socket_factory = try_clone_from_candidate(*existing_listener, addr);
       }
+
+      if (socket_factory == nullptr) {
+        for (const auto& draining_listener : draining_listeners_) {
+          socket_factory = try_clone_from_candidate(*draining_listener.listener_, addr);
+          if (socket_factory != nullptr) {
+            break;
+          }
+        }
+      }
+
+      if (socket_factory == nullptr) {
+        for (const auto& draining_filter_chain : draining_filter_chains_manager_) {
+          socket_factory =
+              try_clone_from_candidate(draining_filter_chain.getDrainingListener(), addr);
+          if (socket_factory != nullptr) {
+            break;
+          }
+        }
+      }
+
+      if (socket_factory == nullptr) {
+        auto factory_or_error = ListenSocketFactoryImpl::create(
+            *factory_, addr, socket_type, listener.listenSocketOptions(i), listener.name(),
+            listener.tcpBacklogSize(), bind_type, creation_options,
+            server_.options().concurrency());
+        if (!factory_or_error.status().ok()) {
+          socket_status = factory_or_error.status();
+        } else {
+          socket_factory = std::move(*factory_or_error);
+        }
+      }
+
+      if (socket_factory != nullptr) {
+        socket_status = listener.addSocketFactory(std::move(socket_factory));
+      }
+
       if (!socket_status.ok()) {
         break;
       }
+    }
+
+    for (const auto* cloned_listener : cloned_listeners) {
+      cloned_listener->debugLog("clones listener sockets");
     }
   }
   END_TRY

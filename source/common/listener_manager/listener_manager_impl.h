@@ -361,8 +361,8 @@ private:
                                      Network::ListenerConfig& listener_config);
   void notifyListenerRemovalCallbacks(const std::string& listener_name);
 
-  absl::Status setNewOrDrainingSocketFactory(const std::string& name, ListenerImpl& listener);
-  absl::Status createListenSocketFactory(ListenerImpl& listener);
+  absl::Status setNewOrDrainingSocketFactory(const std::string& name, ListenerImpl& listener,
+                                             const ListenerImpl* existing_listener = nullptr);
 
   void maybeCloseSocketsForListener(ListenerImpl& listener);
   absl::Status setupSocketFactoryForListener(ListenerImpl& new_listener,

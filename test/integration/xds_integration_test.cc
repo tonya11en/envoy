@@ -697,6 +697,40 @@ TEST_P(LdsIntegrationTest, ReloadConfig) {
   EXPECT_THAT(response2, HasSubstr("HTTP/1.0 200 OK\r\n"));
 }
 
+TEST_P(LdsIntegrationTest, AddAdditionalAddressLdsUpdate) {
+  config_helper_.disableDelayClose();
+  autonomous_upstream_ = true;
+  initialize();
+  EXPECT_EQ(1, test_server_->counter("listener_manager.lds.update_success")->value());
+
+  // Establish a connection and make a request to the initial listening port.
+  codec_client_ = makeHttpConnection(lookupPort("http"));
+  auto response = codec_client_->makeHeaderOnlyRequest(default_request_headers_);
+  ASSERT_TRUE(response->waitForEndStream());
+  EXPECT_TRUE(response->complete());
+  EXPECT_EQ("200", response->headers().getStatusValue());
+
+  // Now create an updated config that adds an additional UDS address.
+  ConfigHelper new_config_helper(version_, config_helper_.bootstrap());
+  std::string uds_path = TestEnvironment::unixDomainSocketPath("test_add_address.sock");
+  new_config_helper.addConfigModifier(
+      [uds_path](envoy::config::listener::v3::Listener& listener) {
+        auto* additional_addr = listener.add_additional_addresses();
+        additional_addr->mutable_address()->mutable_pipe()->set_path(uds_path);
+      });
+
+  new_config_helper.setLds("1");
+  test_server_->waitForCounter("listener_manager.lds.update_success", Ge(2));
+
+  // The existing connection on the original address remains active and functional!
+  auto response2 = codec_client_->makeHeaderOnlyRequest(default_request_headers_);
+  ASSERT_TRUE(response2->waitForEndStream());
+  EXPECT_TRUE(response2->complete());
+  EXPECT_EQ("200", response2->headers().getStatusValue());
+
+  cleanupUpstreamAndTarget();
+}
+
 // Verify that a listener that goes through the individual warming path (not server init) is
 // failed and removed correctly if there are issues with final pre-worker init.
 TEST_P(LdsIntegrationTest, NewListenerWithBadPostListenSocketOption) {

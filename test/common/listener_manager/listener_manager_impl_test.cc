@@ -7057,6 +7057,286 @@ TEST_P(ListenerManagerImplWithRealFiltersTest,
   EXPECT_EQ(1U, manager_->listeners().size());
 }
 
+TEST_P(ListenerManagerImplTest, AddAdditionalAddressWithoutDrainingExistingSockets) {
+  const std::string yaml_1 = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  const std::string yaml_2 = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    additional_addresses:
+    - address:
+        pipe: { path: "/tmp/uds_test.sock" }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  // Expect socket creation for address 127.0.0.1:12345 when listener is first added.
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_1)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+
+  // Now update listener by adding additional address (/tmp/uds_test.sock).
+  // Expect socket creation ONLY for the new UDS address, while the existing 127.0.0.1:12345 socket is cloned.
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_2)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+}
+
+TEST_P(ListenerManagerImplTest, RemoveAdditionalAddressWithoutDrainingExistingSockets) {
+  const std::string yaml_with_additional = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    additional_addresses:
+    - address:
+        pipe: { path: "/tmp/uds_test.sock" }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  const std::string yaml_without_additional = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  // Initially create sockets for both 127.0.0.1:12345 and /tmp/uds_test.sock
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_with_additional)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+
+  // Update listener to remove /tmp/uds_test.sock.
+  // 0 new sockets should be created because 127.0.0.1:12345 is cloned from the existing listener!
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_without_additional)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+}
+
+TEST_P(ListenerManagerImplTest, ReorderAddressesClonesAllSockets) {
+  const std::string yaml_order_1 = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    additional_addresses:
+    - address:
+        socket_address: { address: 127.0.0.1, port_value: 23456 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  const std::string yaml_order_2 = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 23456 }
+    additional_addresses:
+    - address:
+        socket_address: { address: 127.0.0.1, port_value: 12345 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  // Initially create sockets for both addresses
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_order_1)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+
+  // Updating with reordered addresses should clone BOTH sockets without creating new sockets!
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_order_2)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+}
+
+TEST_P(ListenerManagerImplTest, SocketOptionsMismatchCreatesNewSockets) {
+  const std::string yaml_no_freebind = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    freebind: false
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  const std::string yaml_with_freebind = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 12345 }
+    additional_addresses:
+    - address:
+        pipe: { path: "/tmp/uds_test.sock" }
+    freebind: true
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_no_freebind)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+
+  // Because socket options (freebind) changed, no sockets can be cloned; 2 new sockets are created.
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_with_freebind)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+}
+
+TEST_P(ListenerManagerImplTest, MultiplePortZeroAddressesCloning) {
+  const std::string yaml_two_port_zero = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 0 }
+    additional_addresses:
+    - address:
+        socket_address: { address: 127.0.0.1, port_value: 0 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  const std::string yaml_three_port_zero = R"EOF(
+    name: test_listener
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 0 }
+    additional_addresses:
+    - address:
+        socket_address: { address: 127.0.0.1, port_value: 0 }
+    - address:
+        socket_address: { address: 127.0.0.1, port_value: 0 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http_router.v3.Router
+  )EOF";
+
+  // Initially 2 sockets created for 2 port 0 addresses
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_two_port_zero)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+
+  // Updating to 3 port 0 addresses clones the first 2 sockets, and creates ONLY 1 new socket for the 3rd address.
+  expectCreateListenSocket(envoy::config::core::v3::SocketOption::STATE_PREBIND, 0,
+                           ListenerComponentFactory::BindType::ReusePort);
+  EXPECT_TRUE(addOrUpdateListener(parseListenerFromV3Yaml(yaml_three_port_zero)));
+  EXPECT_EQ(1U, manager_->listeners().size());
+}
+
 // This test relies on linux-only code, and a linux-only name IPPROTO_MPTCP
 #if defined(__linux__)
 TEST_P(ListenerManagerImplWithRealFiltersTest, Mptcp) {
