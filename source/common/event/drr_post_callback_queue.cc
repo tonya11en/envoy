@@ -122,8 +122,8 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
           min_rounds_needed = std::min(min_rounds_needed, rounds);
         }
       }
-      if (min_rounds_needed > 1 && min_rounds_needed != std::numeric_limits<uint64_t>::max()) {
-        uint64_t skip_rounds = min_rounds_needed - 1;
+      if (min_rounds_needed > 0 && min_rounds_needed != std::numeric_limits<uint64_t>::max()) {
+        uint64_t skip_rounds = min_rounds_needed;
         for (const TenantId& tenant_id : active_tenants_) {
           auto it = tenant_queues_.find(tenant_id);
           if (it != tenant_queues_.end()) {

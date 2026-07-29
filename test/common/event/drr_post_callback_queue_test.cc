@@ -640,6 +640,41 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulationFastForward) {
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 }
 
+// Verifies regression: fast-forwarding deficit accumulation skips the exact number of needed
+// rounds (min_rounds_needed) without off-by-one errors or disabling fast-forwarding when
+// min_rounds_needed == 1.
+TEST(DRRPostCallbackQueueTest, FastForwardDeficitAccumulationExactPasses) {
+  {
+    DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+    std::vector<std::string> order;
+    queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, /*cost_units=*/1000000);
+    queue.resetPopSlicePassCountForTest();
+
+    auto slice = queue.popSlice(100);
+    for (auto& cb : slice.callbacks) {
+      cb();
+    }
+    // Exactly 2 passes: Pass 1 detects deficit deficit and fast-forwards; Pass 2 executes callback.
+    EXPECT_EQ(queue.popSlicePassCountForTest(), 2);
+    EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
+  }
+  {
+    DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+    std::vector<std::string> order;
+    queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, /*cost_units=*/25);
+    queue.resetPopSlicePassCountForTest();
+
+    auto slice = queue.popSlice(100);
+    for (auto& cb : slice.callbacks) {
+      cb();
+    }
+    // With min_rounds_needed == 1 (cost 25, deficit after Pass 1 is 20), fast-forwarding must skip
+    // 1 round so the callback executes on Pass 2.
+    EXPECT_EQ(queue.popSlicePassCountForTest(), 2);
+    EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
+  }
+}
+
 // Verifies that an empty tenant queue at the start of a round-robin pass does not skip the last
 // tenant.
 TEST(DRRPostCallbackQueueTest, EmptyTenantCleanupAtStartDoesNotSkipNextTenants) {
