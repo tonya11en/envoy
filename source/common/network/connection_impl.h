@@ -134,8 +134,21 @@ public:
     }
   }
 
+  void updateBytesReadThisIteration() {
+    if (Runtime::runtimeFeatureEnabled("envoy.reloadable_features.drr_dispatcher_scheduling")) {
+      uint64_t current_len = read_buffer_->length();
+      if (current_len > last_read_buffer_size_at_read_) {
+        bytes_read_this_iteration_ += (current_len - last_read_buffer_size_at_read_);
+      }
+      last_read_buffer_size_at_read_ = current_len;
+    }
+  }
+
   // Network::ReadBufferSource
-  StreamBuffer getReadBuffer() override { return {*read_buffer_, read_end_stream_}; }
+  StreamBuffer getReadBuffer() override {
+    updateBytesReadThisIteration();
+    return {*read_buffer_, read_end_stream_};
+  }
   // Network::WriteBufferSource
   StreamBuffer getWriteBuffer() override {
     return {*current_write_buffer_, current_write_end_stream_};
@@ -148,13 +161,19 @@ public:
   void raiseEvent(ConnectionEvent event) override;
   // Should the read buffer be drained?
   bool shouldDrainReadBuffer() override {
+    updateBytesReadThisIteration();
+    if (Runtime::runtimeFeatureEnabled("envoy.reloadable_features.drr_dispatcher_scheduling")) {
+      if (bytes_read_this_iteration_ >= max_bytes_per_read_iteration_) {
+        return true;
+      }
+    }
     return read_buffer_limit_ > 0 && read_buffer_->length() >= read_buffer_limit_;
   }
+
   // Mark read buffer ready to read in the event loop. This is used when yielding following
   // shouldDrainReadBuffer().
   // TODO(htuch): While this is the basis for also yielding to other connections to provide some
-  // fair sharing of CPU resources, the underlying event loop does not make any fairness guarantees.
-  // Reconsider how to make fairness happen.
+  // intra-loop fairness, it needs a scheduler above.
   void setTransportSocketIsReadable() override;
   void flushWriteBuffer() override;
   TransportSocketPtr& transportSocket() { return transport_socket_; }
@@ -220,6 +239,9 @@ protected:
   // This buffer is always allocated, never nullptr.
   Buffer::InstancePtr read_buffer_;
   uint32_t read_buffer_limit_ = 0;
+  uint64_t bytes_read_this_iteration_{0};
+  uint64_t last_read_buffer_size_at_read_{0};
+  uint64_t max_bytes_per_read_iteration_{64 * 1024};
   bool connecting_{false};
   ConnectionEvent immediate_error_event_{ConnectionEvent::Connected};
   bool bind_error_{false};

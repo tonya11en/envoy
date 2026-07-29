@@ -33,6 +33,7 @@ envoy_cc_library(
     }),
     deps = [
         ":dispatcher_includes",
+        ":drr_post_callback_queue_lib",
         ":libevent_scheduler_lib",
         ":real_time_system_lib",
         ":scaled_range_timer_manager_lib",
@@ -48,6 +49,17 @@ envoy_cc_library(
         "//source/common/network:address_lib",
         "//source/common/network:default_client_connection_factory",
         "@envoy_api//envoy/config/overload/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "drr_post_callback_queue_lib",
+    srcs = ["drr_post_callback_queue.cc"],
+    hdrs = ["drr_post_callback_queue.h"],
+    deps = [
+        "//envoy/event:dispatcher_interface",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -115,6 +127,7 @@ envoy_cc_library(
         "schedulable_cb_impl.h",
     ],
     deps = [
+        ":drr_post_callback_queue_lib",
         ":libevent_lib",
         ":libevent_scheduler_lib",
         "//envoy/api:api_interface",

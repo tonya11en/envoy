@@ -476,6 +476,7 @@ void ConnectionImpl::onRead(uint64_t read_buffer_size) {
   }
 
   filter_manager_.onRead();
+  last_read_buffer_size_at_read_ = read_buffer_->length();
 }
 
 void ConnectionImpl::enableHalfClose(bool enabled) {
@@ -678,6 +679,7 @@ void ConnectionImpl::setBufferHighWatermarkTimeout(std::chrono::milliseconds tim
 
 void ConnectionImpl::onReadBufferLowWatermark() {
   ENVOY_CONN_LOG(debug, "onBelowReadBufferLowWatermark", *this);
+  last_read_buffer_size_at_read_ = read_buffer_->length();
   if (state() == State::Open) {
     readDisable(false);
     maybeCancelBufferHighWatermarkTimeout();
@@ -797,7 +799,10 @@ void ConnectionImpl::onReadReady() {
   // reading from the transport if the read buffer is above high watermark at the start of the
   // method.
   transport_wants_read_ = false;
+  bytes_read_this_iteration_ = 0;
+  last_read_buffer_size_at_read_ = read_buffer_->length();
   IoResult result = transport_socket_->doRead(*read_buffer_);
+  updateBytesReadThisIteration();
   uint64_t new_buffer_size = read_buffer_->length();
   updateReadBufferStats(result.bytes_processed_, new_buffer_size);
 

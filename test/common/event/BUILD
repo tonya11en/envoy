@@ -9,6 +9,14 @@ licenses(["notice"])  # Apache 2
 envoy_package()
 
 envoy_cc_test(
+    name = "drr_post_callback_queue_test",
+    srcs = ["drr_post_callback_queue_test.cc"],
+    deps = [
+        "//source/common/event:drr_post_callback_queue_lib",
+    ],
+)
+
+envoy_cc_test(
     name = "dispatcher_impl_test",
     srcs = ["dispatcher_impl_test.cc"],
     rbe_pool = "6gig",

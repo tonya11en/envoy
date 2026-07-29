@@ -1554,6 +1554,196 @@ TEST(EvwatchObserverTest, RegisterEvwatchObserver) {
   dispatcher->unregisterEvwatchObserver(observer);
 }
 
+// Verifies that post callbacks enqueued within tracked object scopes are partitioned by tenant and
+// executed.
+TEST(DispatcherDrrTest, PostCallbacksDRRWithTrackedScope) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  class MockTrackedObject : public ScopeTrackedObject {
+  public:
+    void dumpState(std::ostream&, int) const override {}
+  };
+
+  MockTrackedObject tenant_a_obj;
+  MockTrackedObject tenant_b_obj;
+
+  std::vector<std::string> order;
+
+  // Enqueue 5 callbacks under Tenant A scope
+  dispatcher->pushTrackedObject(&tenant_a_obj);
+  for (int i = 1; i <= 5; i++) {
+    dispatcher->post([i, &order]() { order.push_back("A" + std::to_string(i)); });
+  }
+  dispatcher->popTrackedObject(&tenant_a_obj);
+
+  // Enqueue 2 callbacks under Tenant B scope
+  dispatcher->pushTrackedObject(&tenant_b_obj);
+  for (int i = 1; i <= 2; i++) {
+    dispatcher->post([i, &order]() { order.push_back("B" + std::to_string(i)); });
+  }
+  dispatcher->popTrackedObject(&tenant_b_obj);
+
+  dispatcher->run(Dispatcher::RunType::NonBlock);
+
+  EXPECT_EQ(order.size(), 7);
+}
+
+// Verifies thread safety when post() is called from a non-dispatcher thread while a tracked object
+// is active.
+TEST(DispatcherDrrTest, PostFromOtherThreadThreadSafety) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  class MockTrackedObject : public ScopeTrackedObject {
+  public:
+    void dumpState(std::ostream&, int) const override {}
+  };
+
+  MockTrackedObject tracked_obj;
+  dispatcher->pushTrackedObject(&tracked_obj);
+
+  std::atomic<bool> executed{false};
+  Thread::ThreadPtr thread = api->threadFactory().createThread(
+      [&dispatcher, &executed]() { dispatcher->post([&executed]() { executed = true; }); });
+  thread->join();
+
+  dispatcher->popTrackedObject(&tracked_obj);
+  dispatcher->run(Dispatcher::RunType::NonBlock);
+  EXPECT_TRUE(executed);
+}
+
+// Verifies that sequential tracked objects created at the same memory address do not collide
+// into the same DRR tenant queue if their lifetimes do not overlap.
+TEST(DispatcherDrrTest, TrackedObjectScopeLifetimeIsolation) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  class MockTrackedObject : public ScopeTrackedObject {
+  public:
+    void dumpState(std::ostream&, int) const override {}
+  };
+
+  std::vector<std::string> order;
+
+  auto* obj1 = new MockTrackedObject();
+  dispatcher->pushTrackedObject(obj1);
+  dispatcher->post([&order]() { order.push_back("Obj1_CB1"); });
+  dispatcher->popTrackedObject(obj1);
+  delete obj1;
+
+  auto* obj2 = new MockTrackedObject();
+  dispatcher->pushTrackedObject(obj2);
+  dispatcher->post([&order]() { order.push_back("Obj2_CB1"); });
+  dispatcher->popTrackedObject(obj2);
+
+  dispatcher->run(Dispatcher::RunType::NonBlock);
+  delete obj2;
+
+  EXPECT_EQ(order, (std::vector<std::string>{"Obj1_CB1", "Obj2_CB1"}));
+}
+
+// Verifies that post callbacks for the same tracked object across different scope pushes share the
+// same DRR tenant queue.
+TEST(DispatcherDrrTest, DRRPostCallbackTrackedObjectContinuity) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  class MockTrackedObject : public ScopeTrackedObject {
+  public:
+    void dumpState(std::ostream&, int) const override {}
+  };
+
+  MockTrackedObject obj1;
+  MockTrackedObject obj2;
+
+  std::vector<std::string> order;
+
+  // Scope Push 1 for obj1
+  dispatcher->pushTrackedObject(&obj1);
+  dispatcher->post([&order]() { order.push_back("Obj1_Scope1_CB1"); });
+  dispatcher->popTrackedObject(&obj1);
+
+  // Scope Push 1 for obj2
+  dispatcher->pushTrackedObject(&obj2);
+  dispatcher->post([&order]() { order.push_back("Obj2_Scope1_CB1"); });
+  dispatcher->popTrackedObject(&obj2);
+
+  // Scope Push 2 for obj1 (same active object obj1)
+  dispatcher->pushTrackedObject(&obj1);
+  dispatcher->post([&order]() { order.push_back("Obj1_Scope2_CB1"); });
+  dispatcher->popTrackedObject(&obj1);
+
+  // Scope Push 2 for obj2 (same active object obj2)
+  dispatcher->pushTrackedObject(&obj2);
+  dispatcher->post([&order]() { order.push_back("Obj2_Scope2_CB1"); });
+  dispatcher->popTrackedObject(&obj2);
+
+  dispatcher->run(Dispatcher::RunType::NonBlock);
+
+  // Obj1 callbacks should be queued in Obj1's tenant queue (FIFO order: Scope1_CB1, Scope2_CB1),
+  // and Obj2 callbacks in Obj2's tenant queue (FIFO order: Scope1_CB1, Scope2_CB1).
+  EXPECT_EQ(order, (std::vector<std::string>{"Obj1_Scope1_CB1", "Obj1_Scope2_CB1",
+                                             "Obj2_Scope1_CB1", "Obj2_Scope2_CB1"}));
+}
+
+// Verifies that callbacks posted while DRR is enabled are not orphaned if the runtime flag is
+// toggled.
+TEST(DispatcherDrrTest, DRRPostCallbackRuntimeFeatureToggleNoOrphan) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  bool ran = false;
+  dispatcher->post([&ran]() { ran = true; });
+
+  // Dynamically disable the DRR runtime feature flag before runPostCallbacks executes
+  TestScopedRuntime scoped_runtime;
+  scoped_runtime.mergeValues({{"envoy.reloadable_features.drr_dispatcher_scheduling", "false"}});
+
+  dispatcher->run(Dispatcher::RunType::NonBlock);
+  EXPECT_TRUE(ran);
+}
+
+// Verifies that post callbacks for the same tracked object across different scope pushes share
+// the same DRR tenant queue regardless of scope ID increments.
+TEST(DispatcherDrrTest, TrackedObjectScopeIDContinuity) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  class MockTrackedObject : public ScopeTrackedObject {
+  public:
+    void dumpState(std::ostream&, int) const override {}
+  };
+
+  MockTrackedObject obj1;
+  MockTrackedObject obj2;
+
+  std::vector<std::string> order;
+
+  // Scope Push 1 for obj1
+  dispatcher->pushTrackedObject(&obj1);
+  dispatcher->post([&order]() { order.push_back("Obj1_Scope1"); });
+  dispatcher->popTrackedObject(&obj1);
+
+  // Scope Push 1 for obj2
+  dispatcher->pushTrackedObject(&obj2);
+  dispatcher->post([&order]() { order.push_back("Obj2_Scope1"); });
+  dispatcher->popTrackedObject(&obj2);
+
+  // Scope Push 2 for obj1 (same memory pointer, should share Obj1 tenant queue)
+  dispatcher->pushTrackedObject(&obj1);
+  dispatcher->post([&order]() { order.push_back("Obj1_Scope2"); });
+  dispatcher->popTrackedObject(&obj1);
+
+  dispatcher->run(Dispatcher::RunType::NonBlock);
+
+  // Obj1 tenant queue: [Obj1_Scope1, Obj1_Scope2], Obj2 tenant queue: [Obj2_Scope1]
+  // Round-robin execution across Obj1 and Obj2: Obj1 gets turn 1 (Obj1_Scope1, Obj1_Scope2), Obj2
+  // gets turn 2 (Obj2_Scope1)
+  EXPECT_EQ(order, (std::vector<std::string>{"Obj1_Scope1", "Obj1_Scope2", "Obj2_Scope1"}));
+}
+
 } // namespace
+
 } // namespace Event
 } // namespace Envoy

@@ -1,0 +1,1 @@
+:ring_buoy: **fairness**: Added DRR (Deficit Round-Robin) scheduling to ``Event::DispatcherImpl`` and socket read quanta yielding to ``Network::ConnectionImpl`` to prevent L4 event loop starvation by noisy neighbors. Can be toggled via runtime feature ``envoy.reloadable_features.drr_dispatcher_scheduling``.

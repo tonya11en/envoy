@@ -54,6 +54,16 @@ envoy_cc_test_library(
 )
 
 envoy_cc_test(
+    name = "drr_dispatcher_integration_test",
+    srcs = ["drr_dispatcher_integration_test.cc"],
+    rbe_pool = "4core",
+    deps = [
+        ":http_integration_lib",
+        "//test/test_common:utility_lib",
+    ],
+)
+
+envoy_cc_test(
     name = "ads_integration_test",
     size = "large",
     srcs = envoy_select_admin_functionality(

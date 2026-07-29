@@ -272,10 +272,25 @@ SignalEventPtr DispatcherImpl::listenForSignal(signal_t signal_num, SignalCb cb)
 
 void DispatcherImpl::post(PostCb callback) {
   bool do_post;
-  {
-    Thread::LockGuard lock(post_lock_);
-    do_post = post_callbacks_.empty();
-    post_callbacks_.push_back(std::move(callback));
+  if (Runtime::runtimeFeatureEnabled("envoy.reloadable_features.drr_dispatcher_scheduling")) {
+    TenantId tenant_id = DefaultTenantId;
+    if (isThreadSafe() && !tracked_object_stack_.empty() &&
+        tracked_object_stack_.back() != nullptr) {
+      tenant_id = reinterpret_cast<uintptr_t>(tracked_object_stack_.back());
+    }
+
+
+    {
+      Thread::LockGuard lock(post_lock_);
+      do_post = drr_post_callbacks_.empty();
+      drr_post_callbacks_.enqueue(tenant_id, std::move(callback));
+    }
+  } else {
+    {
+      Thread::LockGuard lock(post_lock_);
+      do_post = post_callbacks_.empty();
+      post_callbacks_.push_back(std::move(callback));
+    }
   }
 
   if (do_post) {
@@ -321,7 +336,7 @@ void DispatcherImpl::shutdown() {
   std::list<std::function<void()>>::size_type post_callbacks_size;
   {
     Thread::LockGuard lock(post_lock_);
-    post_callbacks_size = post_callbacks_.size();
+    post_callbacks_size = post_callbacks_.size() + drr_post_callbacks_.size();
   }
 
   std::list<DispatcherThreadDeletableConstPtr> local_deletables;
@@ -348,15 +363,13 @@ void DispatcherImpl::updateApproximateMonotonicTimeInternal() {
 }
 
 void DispatcherImpl::runThreadLocalDelete() {
+  // Always clear thread local deletables in FIFO order.
   std::list<DispatcherThreadDeletableConstPtr> to_be_delete;
   {
     Thread::LockGuard lock(thread_local_deletable_lock_);
-    to_be_delete = std::move(deletables_in_dispatcher_thread_);
-    ASSERT(deletables_in_dispatcher_thread_.empty());
+    to_be_delete.swap(deletables_in_dispatcher_thread_);
   }
   while (!to_be_delete.empty()) {
-    // Touch the watchdog before deleting the objects to avoid spurious watchdog miss events when
-    // executing complicated destruction.
     touchWatchdog();
     // Delete in FIFO order.
     to_be_delete.pop_front();
@@ -368,26 +381,54 @@ void DispatcherImpl::runPostCallbacks() {
   // objects that is being deferred deleted.
   clearDeferredDeleteList();
 
+  bool has_drr = false;
+  {
+    Thread::LockGuard lock(post_lock_);
+    has_drr = !drr_post_callbacks_.empty();
+  }
+
+  if (has_drr) {
+    DRRPostCallbackQueue::PopSliceResult slice;
+    {
+      Thread::LockGuard lock(post_lock_);
+      uint32_t dynamic_cost = std::max(
+          50u, static_cast<uint32_t>(drr_post_callbacks_.numTenantQueues() *
+                                     drr_post_callbacks_.defaultQuantum()));
+      uint32_t max_slice_cost = std::min(500u, dynamic_cost);
+      slice = drr_post_callbacks_.popSlice(max_slice_cost);
+    }
+
+    for (auto& cb : slice.callbacks) {
+      touchWatchdog();
+      auto current_cb = std::move(cb);
+      current_cb();
+    }
+    if (slice.has_more) {
+      post_cb_->scheduleCallbackNextIteration();
+    }
+  }
+
   std::list<PostCb> callbacks;
   {
     // Take ownership of the callbacks under the post_lock_. The lock must be released before
-    // callbacks execute. Callbacks added after this transfer will re-arm post_cb_ and will execute
-    // later in the event loop.
+    // callbacks execute. Callbacks added after this transfer will re-arm post_cb_ and will
+    // execute later in the event loop.
     Thread::LockGuard lock(post_lock_);
     callbacks = std::move(post_callbacks_);
     // post_callbacks_ should be empty after the move.
     ASSERT(post_callbacks_.empty());
   }
-  // It is important that the execution and deletion of the callback happen while post_lock_ is not
-  // held. Either the invocation or destructor of the callback can call post() on this dispatcher.
+  // It is important that the execution and deletion of the callback happen while post_lock_ is
+  // not held. Either the invocation or destructor of the callback can call post() on this
+  // dispatcher.
   while (!callbacks.empty()) {
-    // Touch the watchdog before executing the callback to avoid spurious watchdog miss events when
-    // executing a long list of callbacks.
+    // Touch the watchdog before executing the callback to avoid spurious watchdog miss events
+    // when executing a long list of callbacks.
     touchWatchdog();
     // Run the callback.
     callbacks.front()();
-    // Pop the front so that the destructor of the callback that just executed runs before the next
-    // callback executes.
+    // Pop the front so that the destructor of the callback that just executed runs before the
+    // next callback executes.
     callbacks.pop_front();
   }
 }

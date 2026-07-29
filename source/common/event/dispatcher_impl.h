@@ -16,6 +16,7 @@
 
 #include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
+#include "source/common/event/drr_post_callback_queue.h"
 #include "source/common/event/libevent.h"
 #include "source/common/event/libevent_scheduler.h"
 #include "source/common/signal/fatal_error_handler.h"
@@ -165,6 +166,7 @@ private:
   SchedulableCallbackPtr post_cb_;
   Thread::MutexBasicLockable post_lock_;
   std::list<PostCb> post_callbacks_ ABSL_GUARDED_BY(post_lock_);
+  DRRPostCallbackQueue drr_post_callbacks_ ABSL_GUARDED_BY(post_lock_);
 
   std::vector<DeferredDeletablePtr> to_delete_1_;
   std::vector<DeferredDeletablePtr> to_delete_2_;
