@@ -21,6 +21,7 @@
 #include "source/common/event/libevent_scheduler.h"
 #include "source/common/signal/fatal_error_handler.h"
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 
 namespace Envoy {
@@ -95,6 +96,14 @@ public:
   bool trackedObjectStackIsEmpty() const override { return tracked_object_stack_.empty(); }
   MonotonicTime approximateMonotonicTime() const override;
   void updateApproximateMonotonicTime() override;
+  uintptr_t getTenantIdForTest(const ScopeTrackedObject* obj) const {
+    auto it = tracked_object_tenants_.find(obj);
+    if (it != tracked_object_tenants_.end()) {
+      return it->second.tenant_id;
+    }
+    return reinterpret_cast<uintptr_t>(obj);
+  }
+
   void shutdown() override;
 
   // FatalErrorInterface
@@ -174,6 +183,12 @@ private:
 
   absl::InlinedVector<const ScopeTrackedObject*, ExpectedMaxTrackedObjectStackDepth>
       tracked_object_stack_;
+  struct TrackedObjectTenantEntry {
+    uintptr_t tenant_id{0};
+    uint64_t ref_count{0};
+  };
+  absl::flat_hash_map<const ScopeTrackedObject*, TrackedObjectTenantEntry> tracked_object_tenants_;
+  uintptr_t next_tenant_id_{1};
   bool deferred_deleting_{};
   MonotonicTime approximate_monotonic_time_;
   WatchdogRegistrationPtr watchdog_registration_;

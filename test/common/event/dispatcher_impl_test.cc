@@ -1743,6 +1743,34 @@ TEST(DispatcherDrrTest, TrackedObjectScopeIDContinuity) {
   EXPECT_EQ(order, (std::vector<std::string>{"Obj1_Scope1", "Obj1_Scope2", "Obj2_Scope1"}));
 }
 
+// Verifies that when a ScopeTrackedObject is destroyed and a new ScopeTrackedObject is allocated
+// at the same memory address, the new object receives a distinct DRR TenantId to prevent collisions.
+TEST(DispatcherDrrTest, TrackedObjectAddressRecyclingCollisionPrevention) {
+  Api::ApiPtr api = Api::createApiForTest();
+  DispatcherPtr dispatcher = api->allocateDispatcher("test_thread");
+
+  class MockTrackedObject : public ScopeTrackedObject {
+  public:
+    void dumpState(std::ostream&, int) const override {}
+  };
+
+  alignas(MockTrackedObject) char storage[sizeof(MockTrackedObject)];
+
+  MockTrackedObject* obj1 = new (storage) MockTrackedObject();
+  dispatcher->pushTrackedObject(obj1);
+  uintptr_t tenant_id_1 = static_cast<DispatcherImpl*>(dispatcher.get())->getTenantIdForTest(obj1);
+  dispatcher->popTrackedObject(obj1);
+  obj1->~MockTrackedObject();
+
+  MockTrackedObject* obj2 = new (storage) MockTrackedObject();
+  dispatcher->pushTrackedObject(obj2);
+  uintptr_t tenant_id_2 = static_cast<DispatcherImpl*>(dispatcher.get())->getTenantIdForTest(obj2);
+  dispatcher->popTrackedObject(obj2);
+  obj2->~MockTrackedObject();
+
+  EXPECT_NE(tenant_id_1, tenant_id_2);
+}
+
 } // namespace
 
 } // namespace Event

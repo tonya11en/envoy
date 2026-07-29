@@ -110,6 +110,28 @@ public:
    */
   uint32_t defaultQuantum() const { return default_quantum_units_; }
 
+  /**
+   * @return bool whether the given tenant has a queue in this DRR queue.
+   */
+  bool hasTenant(TenantId tenant_id) const {
+    return tenant_queues_.find(tenant_id) != tenant_queues_.end();
+  }
+
+  // Test helpers
+  void addEmptyTenantForTest(TenantId tenant_id) {
+    auto it = tenant_queues_.find(tenant_id);
+    if (it == tenant_queues_.end()) {
+      TenantQueue new_queue;
+      new_queue.quantum = default_quantum_units_;
+      new_queue.deficit = default_quantum_units_;
+      active_tenants_.push_back(tenant_id);
+      tenant_queues_.emplace(tenant_id, std::move(new_queue));
+    }
+  }
+
+  uint64_t popSlicePassCountForTest() const { return pop_slice_pass_count_for_test_; }
+  void resetPopSlicePassCountForTest() { pop_slice_pass_count_for_test_ = 0; }
+
 private:
   struct TenantQueue {
     std::queue<TenantPostCallback> callbacks;
@@ -119,6 +141,7 @@ private:
 
   const uint32_t default_quantum_units_;
   size_t total_size_{0};
+  uint64_t pop_slice_pass_count_for_test_{0};
   absl::flat_hash_map<TenantId, TenantQueue> tenant_queues_;
   std::list<TenantId> active_tenants_;
   std::list<TenantId>::iterator current_tenant_it_{active_tenants_.end()};

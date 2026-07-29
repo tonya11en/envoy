@@ -251,11 +251,11 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulation) {
 
   remaining = queue.runSlice(/*max_total_cost_units=*/4, nullptr);
   EXPECT_TRUE(remaining);
-  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "A1"}));
+  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "B3"}));
 
   remaining = queue.runSlice(/*max_total_cost_units=*/100, nullptr);
   EXPECT_FALSE(remaining);
-  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "A1", "B3"}));
+  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "B3", "A1"}));
 }
 
 // Verifies that a single tenant with a high-cost callback (greater than quantum) executes
@@ -547,6 +547,8 @@ TEST(DRRPostCallbackQueueTest, SliceCapAdvancesIteratorToNextTenant) {
   EXPECT_EQ(order, (std::vector<std::string>{"A1", "B1"}));
 }
 
+// Verifies that when a tenant has remaining deficit after a slice ends due to budget cap,
+// it resumes its turn in the next slice.
 TEST(DRRPostCallbackQueueTest, InterSliceRoundRobinFairnessSmallCost) {
   DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
   std::vector<std::string> order;
@@ -563,12 +565,12 @@ TEST(DRRPostCallbackQueueTest, InterSliceRoundRobinFairnessSmallCost) {
   }
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 
-  // Slice 2: max_total_cost_units = 2. Must run Tenant B (B1), NOT Tenant A (A2).
+  // Slice 2: max_total_cost_units = 2. Tenant A has deficit 8 remaining, so it runs A2.
   auto slice2 = queue.popSlice(2);
   for (auto& cb : slice2.callbacks) {
     cb();
   }
-  EXPECT_EQ(order, (std::vector<std::string>{"A1", "B1"}));
+  EXPECT_EQ(order, (std::vector<std::string>{"A1", "A2"}));
 }
 
 TEST(DRRPostCallbackQueueTest, MoveAssignmentResetsOtherIterator) {
@@ -589,6 +591,70 @@ TEST(DRRPostCallbackQueueTest, MoveAssignmentResetsOtherIterator) {
     queue1.enqueue(TenantC, []() {});
     queue1.popSlice(10);
   });
+}
+
+// Verifies that when a tenant is interrupted mid-round by the slice budget cap while it
+// still has remaining positive deficit, it resumes in the next slice rather than forfeiting its turn.
+TEST(DRRPostCallbackQueueTest, TenantResumesRemainingDeficitWhenInterruptedBySliceBudget) {
+  DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+  std::vector<std::string> order;
+
+  queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, 3);
+  queue.enqueue(TenantA, [&]() { order.push_back("A2"); }, 3);
+  queue.enqueue(TenantA, [&]() { order.push_back("A3"); }, 3);
+
+  queue.enqueue(TenantB, [&]() { order.push_back("B1"); }, 3);
+  queue.enqueue(TenantB, [&]() { order.push_back("B2"); }, 3);
+
+  // Slice 1: max_total_cost_units = 4. Tenant A runs A1 (cost 3) and A2 (cost 3).
+  // Total cost = 6 >= 4. Tenant A still has deficit = 4 remaining in this round.
+  auto slice1 = queue.popSlice(4);
+  for (auto& cb : slice1.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(order, (std::vector<std::string>{"A1", "A2"}));
+
+  // Slice 2: Tenant A should resume its turn with its remaining deficit 4 to run A3 (cost 3).
+  auto slice2 = queue.popSlice(3);
+  for (auto& cb : slice2.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(order, (std::vector<std::string>{"A1", "A2", "A3"}));
+}
+
+// Verifies that a callback with cost much greater than quantum accumulates deficit in O(1) time
+// without spinning in popSlice for millions of loop iterations.
+TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulationFastForward) {
+  DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+  std::vector<std::string> order;
+
+  queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, /*cost_units=*/1000000);
+  queue.resetPopSlicePassCountForTest();
+
+  auto slice = queue.popSlice(100);
+  for (auto& cb : slice.callbacks) {
+    cb();
+  }
+  EXPECT_LE(queue.popSlicePassCountForTest(), 3);
+  EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
+}
+
+// Verifies that an empty tenant queue at the start of a round-robin pass does not skip the last tenant.
+TEST(DRRPostCallbackQueueTest, EmptyTenantCleanupAtStartDoesNotSkipNextTenants) {
+  DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+  std::vector<std::string> order;
+
+  queue.addEmptyTenantForTest(TenantA);
+  queue.enqueue(TenantB, [&]() { order.push_back("B1"); }, 1);
+  queue.enqueue(TenantC, [&]() { order.push_back("C1"); }, 1);
+
+  queue.resetPopSlicePassCountForTest();
+  auto slice = queue.popSlice(10);
+  for (auto& cb : slice.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 1);
+  EXPECT_EQ(order, (std::vector<std::string>{"B1", "C1"}));
 }
 
 } // namespace

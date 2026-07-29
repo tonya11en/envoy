@@ -1,6 +1,7 @@
 #include "source/common/event/drr_post_callback_queue.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace Envoy {
 namespace Event {
@@ -33,6 +34,7 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
 
   while (!active_tenants_.empty() &&
          (total_processed_cost < max_total_cost_units || total_processed_cost == 0)) {
+    ++pop_slice_pass_count_for_test_;
     size_t pass_active_count = active_tenants_.size();
     bool any_callback_executed_this_pass = false;
 
@@ -51,12 +53,6 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
           tenant_queues_.erase(it);
         }
         current_tenant_it_ = active_tenants_.erase(current_tenant_it_);
-        if (pass_active_count > 0) {
-          --pass_active_count;
-          if (pass_step > 0) {
-            --pass_step;
-          }
-        }
         if (active_tenants_.empty()) {
           current_tenant_it_ = active_tenants_.end();
           break;
@@ -99,14 +95,38 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
         ++current_tenant_it_;
       } else {
         // Exited inner loop because max_total_cost_units budget cap was reached.
-        // Advance current_tenant_it_ so the next slice starts at the next tenant.
-        ++current_tenant_it_;
+        // Do NOT advance current_tenant_it_ so the current tenant resumes its remaining
+        // deficit in the next slice.
         break;
       }
     }
 
-    if (!any_callback_executed_this_pass && total_processed_cost > 0) {
-      break;
+    if (!any_callback_executed_this_pass) {
+      if (total_processed_cost > 0) {
+        break;
+      }
+      // Fast-forward deficit accumulation for high-cost callbacks so we don't O(N) busy-wait spin.
+      uint64_t min_rounds_needed = std::numeric_limits<uint64_t>::max();
+      for (const TenantId& tenant_id : active_tenants_) {
+        auto it = tenant_queues_.find(tenant_id);
+        if (it != tenant_queues_.end() && !it->second.callbacks.empty()) {
+          uint64_t cost = std::max(1u, it->second.callbacks.front().estimated_cost_units);
+          if (cost > it->second.deficit) {
+            uint64_t needed_deficit = cost - it->second.deficit;
+            uint64_t rounds = (needed_deficit + it->second.quantum - 1) / it->second.quantum;
+            min_rounds_needed = std::min(min_rounds_needed, rounds);
+          }
+        }
+      }
+      if (min_rounds_needed > 1 && min_rounds_needed != std::numeric_limits<uint64_t>::max()) {
+        uint64_t skip_rounds = min_rounds_needed - 1;
+        for (const TenantId& tenant_id : active_tenants_) {
+          auto it = tenant_queues_.find(tenant_id);
+          if (it != tenant_queues_.end()) {
+            it->second.deficit += skip_rounds * it->second.quantum;
+          }
+        }
+      }
     }
   }
 

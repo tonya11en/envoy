@@ -4363,6 +4363,36 @@ TEST_F(MockTransportConnectionImplTest, SocketReadQuotaFilterDrainsBufferMidIter
   EXPECT_OK(file_ready_cb_(Event::FileReadyType::Read));
 }
 
+// Verifies that shouldDrainReadBuffer accurately tracks total socket read bytes when filter chains
+// drain the read buffer inside onRead() without explicitly calling getReadBuffer().
+TEST_F(MockTransportConnectionImplTest, SocketReadQuotaOnReadDrainingAccurateTracking) {
+  initializeConnection();
+  connection_->setBufferLimits(100 * 1024);
+  auto read_filter = std::make_shared<NiceMock<MockReadFilter>>();
+  connection_->addReadFilter(read_filter);
+
+  TestScopedRuntime scoped_runtime;
+  scoped_runtime.mergeValues({{"envoy.reloadable_features.drr_dispatcher_scheduling", "true"}});
+
+  EXPECT_CALL(*read_filter, onNewConnection()).WillOnce(Return(FilterStatus::Continue));
+  EXPECT_CALL(*read_filter, onData(_, _)).WillRepeatedly(Return(FilterStatus::Continue));
+
+  EXPECT_CALL(*transport_socket_, doRead(_)).WillOnce(Invoke([this](Buffer::Instance& buffer) {
+    buffer.add(std::string(30 * 1024, 'a'));
+    EXPECT_FALSE(transport_socket_callbacks_->shouldDrainReadBuffer());
+
+    // Simulate filter chain draining 30KB
+    buffer.drain(30 * 1024);
+    connection_->getReadBuffer();
+
+    buffer.add(std::string(40 * 1024, 'a'));
+    EXPECT_TRUE(transport_socket_callbacks_->shouldDrainReadBuffer());
+    return IoResult{PostIoAction::KeepOpen, 70 * 1024, false};
+  }));
+
+  EXPECT_OK(file_ready_cb_(Event::FileReadyType::Read));
+}
+
 TEST_F(MockTransportConnectionImplTest, BufferHighWatermarkTimeoutCancelledOnDrain) {
   initializeConnection();
   InSequence s;
