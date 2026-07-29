@@ -31,15 +31,16 @@ void DRRPostCallbackQueue::enqueue(TenantId tenant_id, PostCb cb, uint32_t cost_
 DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max_total_cost_units) {
   PopSliceResult result;
   uint64_t total_processed_cost = 0;
+  bool budget_cap_reached = false;
 
-  while (!active_tenants_.empty() &&
+  while (!active_tenants_.empty() && !budget_cap_reached &&
          (total_processed_cost < max_total_cost_units || total_processed_cost == 0)) {
     ++pop_slice_pass_count_for_test_;
     size_t pass_active_count = active_tenants_.size();
     bool any_callback_executed_this_pass = false;
 
     for (size_t pass_step = 0;
-         pass_step < pass_active_count && !active_tenants_.empty() &&
+         pass_step < pass_active_count && !active_tenants_.empty() && !budget_cap_reached &&
          (total_processed_cost < max_total_cost_units || total_processed_cost == 0);
          ++pass_step) {
       if (current_tenant_it_ == active_tenants_.end()) {
@@ -63,10 +64,14 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
       TenantQueue& tenant_queue = it->second;
 
       bool broke_due_to_deficit = false;
-      while (!tenant_queue.callbacks.empty() &&
+      while (!tenant_queue.callbacks.empty() && !budget_cap_reached &&
              (total_processed_cost < max_total_cost_units || total_processed_cost == 0)) {
         const TenantPostCallback& head = tenant_queue.callbacks.front();
         uint64_t cost = std::max(1u, head.estimated_cost_units);
+        if (total_processed_cost > 0 && cost > max_total_cost_units) {
+          budget_cap_reached = true;
+          break;
+        }
         if (cost > tenant_queue.deficit) {
           broke_due_to_deficit = true;
           break;
@@ -102,20 +107,19 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
     }
 
     if (!any_callback_executed_this_pass) {
-      if (total_processed_cost > 0) {
-        break;
-      }
       // Fast-forward deficit accumulation for high-cost callbacks so we don't O(N) busy-wait spin.
       uint64_t min_rounds_needed = std::numeric_limits<uint64_t>::max();
       for (const TenantId& tenant_id : active_tenants_) {
         auto it = tenant_queues_.find(tenant_id);
         if (it != tenant_queues_.end() && !it->second.callbacks.empty()) {
           uint64_t cost = std::max(1u, it->second.callbacks.front().estimated_cost_units);
-          if (cost > it->second.deficit) {
-            uint64_t needed_deficit = cost - it->second.deficit;
-            uint64_t rounds = (needed_deficit + it->second.quantum - 1) / it->second.quantum;
-            min_rounds_needed = std::min(min_rounds_needed, rounds);
+          if (cost <= it->second.deficit) {
+            min_rounds_needed = 0;
+            break;
           }
+          uint64_t needed_deficit = cost - it->second.deficit;
+          uint64_t rounds = (needed_deficit + it->second.quantum - 1) / it->second.quantum;
+          min_rounds_needed = std::min(min_rounds_needed, rounds);
         }
       }
       if (min_rounds_needed > 1 && min_rounds_needed != std::numeric_limits<uint64_t>::max()) {

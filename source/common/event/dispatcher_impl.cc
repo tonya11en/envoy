@@ -276,14 +276,11 @@ void DispatcherImpl::post(PostCb callback) {
     TenantId tenant_id = DefaultTenantId;
     if (isThreadSafe() && !tracked_object_stack_.empty() &&
         tracked_object_stack_.back() != nullptr) {
-      auto it = tracked_object_tenants_.find(tracked_object_stack_.back());
-      if (it != tracked_object_tenants_.end()) {
-        tenant_id = it->second.tenant_id;
-      } else {
+      tenant_id = tracked_object_stack_.back()->drr_tenant_id_;
+      if (tenant_id == 0) {
         tenant_id = reinterpret_cast<uintptr_t>(tracked_object_stack_.back());
       }
     }
-
 
     {
       Thread::LockGuard lock(post_lock_);
@@ -396,9 +393,9 @@ void DispatcherImpl::runPostCallbacks() {
     DRRPostCallbackQueue::PopSliceResult slice;
     {
       Thread::LockGuard lock(post_lock_);
-      uint32_t dynamic_cost = std::max(
-          50u, static_cast<uint32_t>(drr_post_callbacks_.numTenantQueues() *
-                                     drr_post_callbacks_.defaultQuantum()));
+      uint32_t dynamic_cost =
+          std::max(50u, static_cast<uint32_t>(drr_post_callbacks_.numTenantQueues() *
+                                              drr_post_callbacks_.defaultQuantum()));
       uint32_t max_slice_cost = std::min(500u, dynamic_cost);
       slice = drr_post_callbacks_.popSlice(max_slice_cost);
     }
@@ -410,18 +407,6 @@ void DispatcherImpl::runPostCallbacks() {
     }
     if (slice.has_more) {
       post_cb_->scheduleCallbackNextIteration();
-    }
-    for (auto it = tracked_object_tenants_.begin(); it != tracked_object_tenants_.end();) {
-      bool has_tenant = false;
-      {
-        Thread::LockGuard lock(post_lock_);
-        has_tenant = drr_post_callbacks_.hasTenant(it->second.tenant_id);
-      }
-      if (it->second.ref_count == 0 && !has_tenant) {
-        tracked_object_tenants_.erase(it++);
-      } else {
-        ++it;
-      }
     }
   }
 
@@ -483,11 +468,9 @@ void DispatcherImpl::touchWatchdog() {
 void DispatcherImpl::pushTrackedObject(const ScopeTrackedObject* object) {
   ASSERT(isThreadSafe());
   ASSERT(object != nullptr);
-  auto& entry = tracked_object_tenants_[object];
-  if (entry.tenant_id == 0) {
-    entry.tenant_id = next_tenant_id_++;
+  if (object->drr_tenant_id_ == 0) {
+    object->drr_tenant_id_ = next_tenant_id_++;
   }
-  ++entry.ref_count;
   tracked_object_stack_.push_back(object);
   ASSERT(tracked_object_stack_.size() <= ExpectedMaxTrackedObjectStackDepth);
 }
@@ -501,21 +484,6 @@ void DispatcherImpl::popTrackedObject(const ScopeTrackedObject* expected_object)
   tracked_object_stack_.pop_back();
   ASSERT(top == expected_object,
          "Popped the top of the tracked object stack, but it wasn't the expected object!");
-
-  auto it = tracked_object_tenants_.find(expected_object);
-  if (it != tracked_object_tenants_.end()) {
-    if (it->second.ref_count > 0) {
-      --it->second.ref_count;
-    }
-    bool has_tenant = false;
-    {
-      Thread::LockGuard lock(post_lock_);
-      has_tenant = drr_post_callbacks_.hasTenant(it->second.tenant_id);
-    }
-    if (it->second.ref_count == 0 && !has_tenant) {
-      tracked_object_tenants_.erase(it);
-    }
-  }
 }
 
 } // namespace Event

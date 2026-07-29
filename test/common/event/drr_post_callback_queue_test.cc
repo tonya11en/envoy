@@ -594,7 +594,8 @@ TEST(DRRPostCallbackQueueTest, MoveAssignmentResetsOtherIterator) {
 }
 
 // Verifies that when a tenant is interrupted mid-round by the slice budget cap while it
-// still has remaining positive deficit, it resumes in the next slice rather than forfeiting its turn.
+// still has remaining positive deficit, it resumes in the next slice rather than forfeiting its
+// turn.
 TEST(DRRPostCallbackQueueTest, TenantResumesRemainingDeficitWhenInterruptedBySliceBudget) {
   DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
   std::vector<std::string> order;
@@ -639,7 +640,8 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulationFastForward) {
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 }
 
-// Verifies that an empty tenant queue at the start of a round-robin pass does not skip the last tenant.
+// Verifies that an empty tenant queue at the start of a round-robin pass does not skip the last
+// tenant.
 TEST(DRRPostCallbackQueueTest, EmptyTenantCleanupAtStartDoesNotSkipNextTenants) {
   DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
   std::vector<std::string> order;
@@ -655,6 +657,52 @@ TEST(DRRPostCallbackQueueTest, EmptyTenantCleanupAtStartDoesNotSkipNextTenants) 
   }
   EXPECT_EQ(queue.popSlicePassCountForTest(), 1);
   EXPECT_EQ(order, (std::vector<std::string>{"B1", "C1"}));
+}
+
+// Verifies Bug 1: Premature slice termination on passes where no callback can execute immediately
+// when total_processed_cost > 0.
+TEST(DRRPostCallbackQueueTest, MixedCostCallbacksExecuteInSingleSliceWhenWithinBudget) {
+  DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+  std::vector<std::string> order;
+
+  queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, 10);
+  queue.enqueue(TenantA, [&]() { order.push_back("A2"); }, 100);
+  queue.enqueue(TenantB, [&]() { order.push_back("B1"); }, 100);
+
+  // max_total_cost_units = 500. Should execute all 3 callbacks within a single slice.
+  auto slice = queue.popSlice(500);
+  for (auto& cb : slice.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(order, (std::vector<std::string>{"A1", "B1", "A2"}));
+  EXPECT_FALSE(slice.has_more);
+}
+
+// Verifies Bug 2: Fast-forward deficit accumulation does not over-credit ready tenants.
+TEST(DRRPostCallbackQueueTest, FastForwardDoesNotOverCreditReadyTenants) {
+  DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+  std::vector<std::string> order;
+
+  // Tenant A starts with deficit 10. A1 cost = 20, A2 cost = 100.
+  queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, 20);
+  queue.enqueue(TenantA, [&]() { order.push_back("A2"); }, 100);
+
+  // Tenant B starts with deficit 10. B1 cost = 1000.
+  queue.enqueue(TenantB, [&]() { order.push_back("B1"); }, 1000);
+
+  // popSlice(30):
+  // Pass 1: neither A1 (cost 20 > def 10) nor B1 (cost 1000 > def 10) can run.
+  // Both break and get +10 deficit (A deficit=20, B deficit=20).
+  // Now Tenant A has deficit 20 >= cost 20 (ready to run A1 on next pass).
+  // Fast-forward must not skip rounds or inflate Tenant A's deficit.
+  // Pass 2: Tenant A runs A1 (cost 20, deficit becomes 0).
+  // Next in Tenant A is A2 (cost 100 > def 0). Total cost = 20.
+  auto slice = queue.popSlice(30);
+  for (auto& cb : slice.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
+  EXPECT_TRUE(slice.has_more);
 }
 
 } // namespace

@@ -97,9 +97,8 @@ public:
   MonotonicTime approximateMonotonicTime() const override;
   void updateApproximateMonotonicTime() override;
   uintptr_t getTenantIdForTest(const ScopeTrackedObject* obj) const {
-    auto it = tracked_object_tenants_.find(obj);
-    if (it != tracked_object_tenants_.end()) {
-      return it->second.tenant_id;
+    if (obj->drr_tenant_id_ != 0) {
+      return obj->drr_tenant_id_;
     }
     return reinterpret_cast<uintptr_t>(obj);
   }
@@ -183,11 +182,6 @@ private:
 
   absl::InlinedVector<const ScopeTrackedObject*, ExpectedMaxTrackedObjectStackDepth>
       tracked_object_stack_;
-  struct TrackedObjectTenantEntry {
-    uintptr_t tenant_id{0};
-    uint64_t ref_count{0};
-  };
-  absl::flat_hash_map<const ScopeTrackedObject*, TrackedObjectTenantEntry> tracked_object_tenants_;
   uintptr_t next_tenant_id_{1};
   bool deferred_deleting_{};
   MonotonicTime approximate_monotonic_time_;

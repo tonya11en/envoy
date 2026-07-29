@@ -36,6 +36,8 @@ public:
    * @param indent_level how far to indent, for pretty-printed classes and subclasses.
    */
   virtual void dumpState(std::ostream& os, int indent_level = 0) const PURE;
+
+  mutable uintptr_t drr_tenant_id_{0};
 };
 
 } // namespace Envoy
