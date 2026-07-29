@@ -28,10 +28,12 @@ TEST(DRRPostCallbackQueueTest, SingleTenantFifoBaseline) {
   EXPECT_FALSE(queue.empty());
   EXPECT_EQ(queue.size(), 3);
 
+  queue.resetPopSlicePassCountForTest();
   bool remaining = queue.runSlice(100, nullptr);
   EXPECT_FALSE(remaining);
   EXPECT_TRUE(queue.empty());
   EXPECT_EQ(execution_order, (std::vector<int>{1, 2, 3}));
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 1);
 }
 
 // Verifies fair round-robin scheduling across multiple tenants based on their quantum limits.
@@ -55,8 +57,10 @@ TEST(DRRPostCallbackQueueTest, MultiTenantFairRoundRobin) {
   EXPECT_EQ(queue.size(), 7);
 
   // First slice allows 4 callbacks (Quantum is 2 per tenant turn)
+  queue.resetPopSlicePassCountForTest();
   bool remaining = queue.runSlice(/*max_total_cost_units=*/4, nullptr);
   EXPECT_TRUE(remaining);
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 1);
 
   // Tenant A should get 2, Tenant B should get 2
   EXPECT_EQ(execution_order, (std::vector<std::string>{"A1", "A2", "B1", "B2"}));
@@ -253,9 +257,11 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulation) {
   EXPECT_TRUE(remaining);
   EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "B3"}));
 
+  queue.resetPopSlicePassCountForTest();
   remaining = queue.runSlice(/*max_total_cost_units=*/100, nullptr);
   EXPECT_FALSE(remaining);
   EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "B3", "A1"}));
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 2);
 }
 
 // Verifies that a single tenant with a high-cost callback (greater than quantum) executes
@@ -268,9 +274,11 @@ TEST(DRRPostCallbackQueueTest, SingleHighCostCallbackYieldsWithoutSpinning) {
   queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, /*cost_units=*/100);
 
   // Slice budget 50. In pass 1, deficit becomes 10 < 100. It acquires deficit until executable.
+  queue.resetPopSlicePassCountForTest();
   bool remaining = queue.runSlice(/*max_total_cost_units=*/50, nullptr);
   EXPECT_FALSE(remaining);
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 2);
 }
 
 // Verifies that a high-cost callback (> quantum) accumulates quantum across rounds until cost is
@@ -500,9 +508,11 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDoesNotSpinLoopOrViolateMaxTotalC
   // Next pass: Tenant B cost 10,000 > deficit 10. No callback runs for Tenant B.
   // Since total_processed_cost = 1 > 0 and no callback executed in this pass, popSlice yields!
   // It does NOT spin 1,000 times in a tight loop to run B1!
+  queue.resetPopSlicePassCountForTest();
   auto slice = queue.popSlice(/*max_total_cost_units=*/50);
   EXPECT_EQ(slice.callbacks.size(), 1);
   EXPECT_TRUE(slice.has_more);
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 1);
 }
 
 // Test 2 (Bug 3): Move constructor/assignment resetting iterator.
@@ -636,7 +646,7 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulationFastForward) {
   for (auto& cb : slice.callbacks) {
     cb();
   }
-  EXPECT_LE(queue.popSlicePassCountForTest(), 3);
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 2);
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 }
 
@@ -732,12 +742,14 @@ TEST(DRRPostCallbackQueueTest, FastForwardDoesNotOverCreditReadyTenants) {
   // Fast-forward must not skip rounds or inflate Tenant A's deficit.
   // Pass 2: Tenant A runs A1 (cost 20, deficit becomes 0).
   // Next in Tenant A is A2 (cost 100 > def 0). Total cost = 20.
+  queue.resetPopSlicePassCountForTest();
   auto slice = queue.popSlice(30);
   for (auto& cb : slice.callbacks) {
     cb();
   }
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
   EXPECT_TRUE(slice.has_more);
+  EXPECT_EQ(queue.popSlicePassCountForTest(), 2);
 }
 
 } // namespace
