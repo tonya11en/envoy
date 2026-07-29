@@ -4258,8 +4258,8 @@ TEST_F(MockTransportConnectionImplTest, SocketReadQuotaFilterDrainsBufferDuringR
   EXPECT_TRUE(transport_socket_callbacks_->shouldDrainReadBuffer());
 }
 
-
-// Verifies that repeated calls to shouldDrainReadBuffer without reading new bytes from the socket do not overcount read bytes.
+// Verifies that repeated calls to shouldDrainReadBuffer without reading new bytes from the socket
+// do not overcount read bytes.
 TEST_F(MockTransportConnectionImplTest, SocketReadQuotaNoOvercountingOnRepeatedChecks) {
   initializeConnection();
   auto read_filter = std::make_shared<NiceMock<MockReadFilter>>();
@@ -4279,7 +4279,8 @@ TEST_F(MockTransportConnectionImplTest, SocketReadQuotaNoOvercountingOnRepeatedC
   EXPECT_OK(file_ready_cb_(Event::FileReadyType::Read));
 }
 
-// Verifies that shouldDrainReadBuffer accurately tracks total socket read bytes when filter chains partially drain the read buffer.
+// Verifies that shouldDrainReadBuffer accurately tracks total socket read bytes when filter chains
+// partially drain the read buffer.
 TEST_F(MockTransportConnectionImplTest, SocketReadQuotaPartialDrainAccurateTracking) {
   initializeConnection();
   auto read_filter = std::make_shared<NiceMock<MockReadFilter>>();
@@ -4305,7 +4306,8 @@ TEST_F(MockTransportConnectionImplTest, SocketReadQuotaPartialDrainAccurateTrack
   EXPECT_OK(file_ready_cb_(Event::FileReadyType::Read));
 }
 
-// Verifies that a single read from transport socket below quota threshold does not double-count bytes.
+// Verifies that a single read from transport socket below quota threshold does not double-count
+// bytes.
 TEST_F(MockTransportConnectionImplTest, SocketReadQuotaSingleReadNoDoubleCounting) {
   initializeConnection();
   auto read_filter = std::make_shared<NiceMock<MockReadFilter>>();
@@ -4338,12 +4340,16 @@ TEST_F(MockTransportConnectionImplTest, SocketReadQuotaFilterDrainsBufferMidIter
   }));
 
   // Transport socket performs 2 reads inside doRead():
-  // Read 1: 30KB. Filter chain drains 30KB. Buffer length drops to 0.
-  // Read 2: 40KB. Total read from socket = 70KB >= 64KB threshold.
+  // Read 1: 30KB. Transport socket checks shouldDrainReadBuffer (false). Filter chain drains 30KB.
+  // Buffer length drops to 0. Read 2: 40KB. Total read from socket = 70KB >= 64KB threshold.
   EXPECT_CALL(*transport_socket_, doRead(_)).WillOnce(Invoke([this](Buffer::Instance& buffer) {
     buffer.add(std::string(30 * 1024, 'a'));
+    // Transport socket checks yield condition after read 1 (30KB < 64KB threshold)
+    EXPECT_FALSE(transport_socket_callbacks_->shouldDrainReadBuffer());
+
     // Filter chain drains 30KB
     buffer.drain(30 * 1024);
+    connection_->getReadBuffer();
 
     // Read another 40KB
     buffer.add(std::string(40 * 1024, 'a'));
@@ -4356,8 +4362,6 @@ TEST_F(MockTransportConnectionImplTest, SocketReadQuotaFilterDrainsBufferMidIter
 
   EXPECT_OK(file_ready_cb_(Event::FileReadyType::Read));
 }
-
-
 
 TEST_F(MockTransportConnectionImplTest, BufferHighWatermarkTimeoutCancelledOnDrain) {
   initializeConnection();

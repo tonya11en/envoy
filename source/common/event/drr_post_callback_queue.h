@@ -19,7 +19,6 @@ namespace Event {
 using TenantId = uintptr_t;
 inline constexpr TenantId DefaultTenantId = 0;
 
-
 struct TenantPostCallback {
   PostCb callback;
   uint32_t estimated_cost_units{1};
@@ -38,12 +37,12 @@ public:
   DRRPostCallbackQueue& operator=(const DRRPostCallbackQueue&) = delete;
 
   DRRPostCallbackQueue(DRRPostCallbackQueue&& other) noexcept
-      : default_quantum_units_(other.default_quantum_units_),
-        total_size_(other.total_size_),
+      : default_quantum_units_(other.default_quantum_units_), total_size_(other.total_size_),
         tenant_queues_(std::move(other.tenant_queues_)),
         active_tenants_(std::move(other.active_tenants_)),
         current_tenant_it_(active_tenants_.begin()) {
     other.total_size_ = 0;
+    other.current_tenant_it_ = other.active_tenants_.end();
   }
 
   DRRPostCallbackQueue& operator=(DRRPostCallbackQueue&& other) noexcept {
@@ -53,6 +52,7 @@ public:
       active_tenants_ = std::move(other.active_tenants_);
       current_tenant_it_ = active_tenants_.begin();
       other.total_size_ = 0;
+      other.current_tenant_it_ = other.active_tenants_.end();
     }
     return *this;
   }
@@ -116,7 +116,6 @@ private:
     uint64_t deficit{0};
     uint32_t quantum{10};
   };
-
 
   const uint32_t default_quantum_units_;
   size_t total_size_{0};

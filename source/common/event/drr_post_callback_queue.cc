@@ -31,12 +31,14 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
   PopSliceResult result;
   uint64_t total_processed_cost = 0;
 
-  while (!active_tenants_.empty() && (total_processed_cost < max_total_cost_units || total_processed_cost == 0)) {
+  while (!active_tenants_.empty() &&
+         (total_processed_cost < max_total_cost_units || total_processed_cost == 0)) {
     size_t pass_active_count = active_tenants_.size();
     bool any_callback_executed_this_pass = false;
 
-    for (size_t pass_step = 0; pass_step < pass_active_count && !active_tenants_.empty() &&
-                               (total_processed_cost < max_total_cost_units || total_processed_cost == 0);
+    for (size_t pass_step = 0;
+         pass_step < pass_active_count && !active_tenants_.empty() &&
+         (total_processed_cost < max_total_cost_units || total_processed_cost == 0);
          ++pass_step) {
       if (current_tenant_it_ == active_tenants_.end()) {
         current_tenant_it_ = active_tenants_.begin();
@@ -51,7 +53,9 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
         current_tenant_it_ = active_tenants_.erase(current_tenant_it_);
         if (pass_active_count > 0) {
           --pass_active_count;
-          --pass_step;
+          if (pass_step > 0) {
+            --pass_step;
+          }
         }
         if (active_tenants_.empty()) {
           current_tenant_it_ = active_tenants_.end();
@@ -86,13 +90,6 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
       if (tenant_queue.callbacks.empty()) {
         tenant_queues_.erase(it);
         current_tenant_it_ = active_tenants_.erase(current_tenant_it_);
-        if (pass_active_count > 0) {
-          --pass_active_count;
-          // IMPORTANT: Since we erased the current element, current_tenant_it_ now points
-          // to the NEXT tenant. We must NOT increment pass_step because we haven't processed
-          // this next tenant yet in this step iteration.
-          --pass_step;
-        }
         if (active_tenants_.empty()) {
           current_tenant_it_ = active_tenants_.end();
           break;
@@ -101,6 +98,9 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
         tenant_queue.deficit += tenant_queue.quantum;
         ++current_tenant_it_;
       } else {
+        // Exited inner loop because max_total_cost_units budget cap was reached.
+        // Advance current_tenant_it_ so the next slice starts at the next tenant.
+        ++current_tenant_it_;
         break;
       }
     }
@@ -110,11 +110,9 @@ DRRPostCallbackQueue::PopSliceResult DRRPostCallbackQueue::popSlice(uint32_t max
     }
   }
 
-
   result.has_more = total_size_ > 0;
   return result;
 }
-
 
 bool DRRPostCallbackQueue::runSlice(uint32_t max_total_cost_units,
                                     const std::function<void()>& watchdog_touch_cb) {

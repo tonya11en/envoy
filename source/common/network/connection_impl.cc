@@ -679,7 +679,7 @@ void ConnectionImpl::setBufferHighWatermarkTimeout(std::chrono::milliseconds tim
 
 void ConnectionImpl::onReadBufferLowWatermark() {
   ENVOY_CONN_LOG(debug, "onBelowReadBufferLowWatermark", *this);
-  last_read_buffer_size_at_read_ = read_buffer_->length();
+  updateBytesReadThisIteration();
   if (state() == State::Open) {
     readDisable(false);
     maybeCancelBufferHighWatermarkTimeout();

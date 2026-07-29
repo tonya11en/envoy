@@ -25,7 +25,6 @@ TEST(DRRPostCallbackQueueTest, SingleTenantFifoBaseline) {
   queue.enqueue(TenantA, [&]() { execution_order.push_back(2); });
   queue.enqueue(TenantA, [&]() { execution_order.push_back(3); });
 
-
   EXPECT_FALSE(queue.empty());
   EXPECT_EQ(queue.size(), 3);
 
@@ -252,11 +251,11 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackDeficitAccumulation) {
 
   remaining = queue.runSlice(/*max_total_cost_units=*/4, nullptr);
   EXPECT_TRUE(remaining);
-  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "B3"}));
+  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "A1"}));
 
   remaining = queue.runSlice(/*max_total_cost_units=*/100, nullptr);
   EXPECT_FALSE(remaining);
-  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "B3", "A1"}));
+  EXPECT_EQ(order, (std::vector<std::string>{"B1", "B2", "A1", "B3"}));
 }
 
 // Verifies that a single tenant with a high-cost callback (greater than quantum) executes
@@ -274,7 +273,8 @@ TEST(DRRPostCallbackQueueTest, SingleHighCostCallbackYieldsWithoutSpinning) {
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 }
 
-// Verifies that a high-cost callback (> quantum) accumulates quantum across rounds until cost is met.
+// Verifies that a high-cost callback (> quantum) accumulates quantum across rounds until cost is
+// met.
 TEST(DRRPostCallbackQueueTest, HighCostCallbackExecutesWithinSliceBudget) {
   DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
   std::vector<std::string> order;
@@ -287,8 +287,8 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackExecutesWithinSliceBudget) {
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 }
 
-
-// Verifies that callbacks costing more than max_total_cost_units accumulate deficit and execute without deadlocking.
+// Verifies that callbacks costing more than max_total_cost_units accumulate deficit and execute
+// without deadlocking.
 TEST(DRRPostCallbackQueueTest, HighCostCallbackExceedingSliceBudgetExecutes) {
   DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
   std::vector<std::string> order;
@@ -296,14 +296,16 @@ TEST(DRRPostCallbackQueueTest, HighCostCallbackExceedingSliceBudgetExecutes) {
   // Callback cost 100 > max_total_cost_units 50
   queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, /*cost_units=*/100);
 
-  // Calling runSlice multiple times should accumulate deficit beyond 50 until 100 is reached and A1 executes.
+  // Calling runSlice multiple times should accumulate deficit beyond 50 until 100 is reached and A1
+  // executes.
   for (int i = 0; i < 10; ++i) {
     queue.runSlice(/*max_total_cost_units=*/50, nullptr);
   }
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 }
 
-// Verifies that when a tenant queue empties mid-slice, remaining active tenants are not granted extra round-robin turns within the same pass.
+// Verifies that when a tenant queue empties mid-slice, remaining active tenants are not granted
+// extra round-robin turns within the same pass.
 TEST(DRRPostCallbackQueueTest, QueueDepletionDoesNotGrantExtraTurnToRemainingTenants) {
   DRRPostCallbackQueue queue(/*default_quantum_units=*/2);
   std::vector<std::string> order;
@@ -320,8 +322,8 @@ TEST(DRRPostCallbackQueueTest, QueueDepletionDoesNotGrantExtraTurnToRemainingTen
   queue.enqueue(TenantC, [&]() { order.push_back("C2"); }, 1);
 
   // Slice budget 3:
-  // Round 1: Tenant A runs A1, A2 (cost 2). Tenant B runs B1 (cost 1, B queue empties and is erased).
-  // Total cost processed = 3.
+  // Round 1: Tenant A runs A1, A2 (cost 2). Tenant B runs B1 (cost 1, B queue empties and is
+  // erased). Total cost processed = 3.
   bool remaining = queue.runSlice(/*max_total_cost_units=*/3, nullptr);
   EXPECT_TRUE(remaining);
   EXPECT_EQ(order, (std::vector<std::string>{"A1", "A2", "B1"}));
@@ -398,8 +400,8 @@ TEST(DRRPostCallbackQueueTest, HybridSlicingClampsToMinimumFloor) {
 
   // Calculate dynamic max slice cost per hybrid strategy formula:
   // std::min(500u, std::max(50u, numTenantQueues() * defaultQuantum()))
-  uint32_t dynamic_cost = std::max(
-      50u, static_cast<uint32_t>(queue.numTenantQueues() * queue.defaultQuantum()));
+  uint32_t dynamic_cost =
+      std::max(50u, static_cast<uint32_t>(queue.numTenantQueues() * queue.defaultQuantum()));
   uint32_t max_slice_cost = std::min(500u, dynamic_cost);
 
   // 1 tenant * quantum 10 = 10 units < 50 minimum floor. Clamped to 50.
@@ -428,8 +430,8 @@ TEST(DRRPostCallbackQueueTest, HybridSlicingScalesWithActiveTenantCount) {
   }
 
   // Calculate dynamic max slice cost per hybrid strategy formula:
-  uint32_t dynamic_cost = std::max(
-      50u, static_cast<uint32_t>(queue.numTenantQueues() * queue.defaultQuantum()));
+  uint32_t dynamic_cost =
+      std::max(50u, static_cast<uint32_t>(queue.numTenantQueues() * queue.defaultQuantum()));
   uint32_t max_slice_cost = std::min(500u, dynamic_cost);
 
   // 10 tenants * quantum 10 = 100 units.
@@ -458,8 +460,8 @@ TEST(DRRPostCallbackQueueTest, HybridSlicingCapsAtMaximumCeiling) {
   }
 
   // Calculate dynamic max slice cost per hybrid strategy formula:
-  uint32_t dynamic_cost = std::max(
-      50u, static_cast<uint32_t>(queue.numTenantQueues() * queue.defaultQuantum()));
+  uint32_t dynamic_cost =
+      std::max(50u, static_cast<uint32_t>(queue.numTenantQueues() * queue.defaultQuantum()));
   uint32_t max_slice_cost = std::min(500u, dynamic_cost);
 
   // 60 tenants * quantum 10 = 600 units > 500 maximum ceiling. Clamped to 500.
@@ -516,9 +518,7 @@ TEST(DRRPostCallbackQueueTest, MoveContainerDoesNotInvalidateIterator) {
   DRRPostCallbackQueue moved_queue(std::move(queue));
 
   // Accessing moved_queue should not segfault or dereference invalid iterator from old queue
-  EXPECT_NO_FATAL_FAILURE({
-    auto slice2 = moved_queue.popSlice(/*max_total_cost_units=*/10);
-  });
+  EXPECT_NO_FATAL_FAILURE({ auto slice2 = moved_queue.popSlice(/*max_total_cost_units=*/10); });
 }
 
 // Test 3 (Bug 4): Round-robin state bias across execution slices.
@@ -538,7 +538,8 @@ TEST(DRRPostCallbackQueueTest, SliceCapAdvancesIteratorToNextTenant) {
   }
   EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
 
-  // Slice 2 budget = 10 units. Next slice MUST advance to Tenant B (runs B1) rather than repeating Tenant A (A2).
+  // Slice 2 budget = 10 units. Next slice MUST advance to Tenant B (runs B1) rather than repeating
+  // Tenant A (A2).
   auto slice2 = queue.popSlice(/*max_total_cost_units=*/10);
   for (auto& cb : slice2.callbacks) {
     cb();
@@ -546,11 +547,50 @@ TEST(DRRPostCallbackQueueTest, SliceCapAdvancesIteratorToNextTenant) {
   EXPECT_EQ(order, (std::vector<std::string>{"A1", "B1"}));
 }
 
+TEST(DRRPostCallbackQueueTest, InterSliceRoundRobinFairnessSmallCost) {
+  DRRPostCallbackQueue queue(/*default_quantum_units=*/10);
+  std::vector<std::string> order;
+
+  queue.enqueue(TenantA, [&]() { order.push_back("A1"); }, 2);
+  queue.enqueue(TenantA, [&]() { order.push_back("A2"); }, 2);
+  queue.enqueue(TenantB, [&]() { order.push_back("B1"); }, 2);
+  queue.enqueue(TenantB, [&]() { order.push_back("B2"); }, 2);
+
+  // Slice 1: max_total_cost_units = 2. Tenant A runs A1 (cost 2). Slice budget ends.
+  auto slice1 = queue.popSlice(2);
+  for (auto& cb : slice1.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(order, (std::vector<std::string>{"A1"}));
+
+  // Slice 2: max_total_cost_units = 2. Must run Tenant B (B1), NOT Tenant A (A2).
+  auto slice2 = queue.popSlice(2);
+  for (auto& cb : slice2.callbacks) {
+    cb();
+  }
+  EXPECT_EQ(order, (std::vector<std::string>{"A1", "B1"}));
+}
+
+TEST(DRRPostCallbackQueueTest, MoveAssignmentResetsOtherIterator) {
+  DRRPostCallbackQueue queue1(10);
+  queue1.enqueue(TenantA, []() {});
+  queue1.enqueue(TenantB, []() {});
+
+  // Advance iterator in queue1
+  queue1.popSlice(1);
+
+  DRRPostCallbackQueue queue2(10);
+  queue2 = std::move(queue1);
+
+  // queue1 should now have active_tenants_ empty and current_tenant_it_ pointing to end()
+  EXPECT_TRUE(queue1.empty());
+  // Adding new item to queue1 must not crash
+  EXPECT_NO_FATAL_FAILURE({
+    queue1.enqueue(TenantC, []() {});
+    queue1.popSlice(10);
+  });
+}
+
 } // namespace
 } // namespace Event
 } // namespace Envoy
-
-
-
-
-
