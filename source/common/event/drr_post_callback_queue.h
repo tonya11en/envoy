@@ -10,6 +10,8 @@
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
 
+#include "source/common/common/assert.h"
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 
@@ -131,6 +133,14 @@ public:
 
   uint64_t popSlicePassCountForTest() const { return pop_slice_pass_count_for_test_; }
   void resetPopSlicePassCountForTest() { pop_slice_pass_count_for_test_ = 0; }
+  void setDefaultQuantumForTest(uint32_t quantum) {
+    ASSERT(quantum > 0);
+    default_quantum_units_ = quantum;
+    for (auto& [_, queue] : tenant_queues_) {
+      queue.quantum = quantum;
+      queue.deficit = quantum;
+    }
+  }
 
 private:
   struct TenantQueue {
@@ -139,7 +149,7 @@ private:
     uint32_t quantum{10};
   };
 
-  const uint32_t default_quantum_units_;
+  uint32_t default_quantum_units_;
   size_t total_size_{0};
   uint64_t pop_slice_pass_count_for_test_{0};
   absl::flat_hash_map<TenantId, TenantQueue> tenant_queues_;

@@ -58,6 +58,7 @@ envoy_cc_library(
     hdrs = ["drr_post_callback_queue.h"],
     deps = [
         "//envoy/event:dispatcher_interface",
+        "//source/common/common:assert_lib",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
     ],

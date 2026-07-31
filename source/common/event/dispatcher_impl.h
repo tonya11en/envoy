@@ -110,6 +110,11 @@ public:
   void
   runFatalActionsOnTrackedObject(const FatalAction::FatalActionPtrList& actions) const override;
 
+  void setDrrDefaultQuantumForTest(uint32_t quantum) {
+    Thread::LockGuard lock(post_lock_);
+    drr_post_callbacks_.setDefaultQuantumForTest(quantum);
+  }
+
 private:
   // Holds a reference to the watchdog registered with this dispatcher and the timer used to ensure
   // that the dog is touched periodically.

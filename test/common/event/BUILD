@@ -1,5 +1,6 @@
 load(
     "//bazel:envoy_build_system.bzl",
+    "envoy_cc_benchmark_binary",
     "envoy_cc_test",
     "envoy_cc_test_binary",
     "envoy_package",
@@ -96,5 +97,23 @@ envoy_cc_test_binary(
         "//test/test_common:test_runtime_lib",
         "//test/test_common:utility_lib",
         "@tclap",
+    ],
+)
+
+envoy_cc_benchmark_binary(
+    name = "drr_dispatcher_benchmark",
+    srcs = ["drr_dispatcher_benchmark.cc"],
+    deps = [
+        "//source/common/api:api_lib",
+        "//source/common/common:assert_lib",
+        "//source/common/event:dispatcher_includes",
+        "//source/common/event:dispatcher_lib",
+        "//source/common/runtime:runtime_lib",
+        "//test/test_common:environment_lib",
+        "//test/test_common:test_runtime_lib",
+        "//test/test_common:test_time_lib",
+        "//test/test_common:utility_lib",
+        "@benchmark",
+        "@libcircllhist",
     ],
 )
