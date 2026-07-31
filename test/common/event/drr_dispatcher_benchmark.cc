@@ -10,9 +10,9 @@
  *
  * The benchmark executes real callbacks on an actual Event::DispatcherImpl. It creates a mix of
  * "well-behaved tenants" (moderate callback batches) and "noisy neighbors" (heavy callback floods
- * that enqueue 20x more callbacks per iteration). For every callback, the benchmark records real
- * wall-clock microsecond queuing latency (time from `post()` to callback execution) and total
- * execution throughput in operations per second.
+ * that account for a constant 80% ratio of the total operations in tenant scaling sweeps). For
+ * every callback, the benchmark records real wall-clock microsecond queuing latency (time from
+ * `post()` to callback execution) and total execution throughput in operations per second.
  *
  * HOW TO INTERPRET THE OUTPUT
  * ---------------------------
@@ -121,6 +121,7 @@ struct BenchmarkParams {
   uint32_t quantum;
   uint32_t work_duration_us;
   bool enable_drr;
+  bool scale_noisy_with_tenants{false};
 };
 
 void runDispatcherBenchmark(::benchmark::State& state, const BenchmarkParams& params) {
@@ -154,7 +155,11 @@ void runDispatcherBenchmark(::benchmark::State& state, const BenchmarkParams& pa
   LatencyCollector noisy_collector;
 
   constexpr size_t WbCallbacksPerTenant = 10;
-  constexpr size_t NoisyCallbacksPerTenant = 200;
+  const size_t total_wb_callbacks = params.num_well_behaved * WbCallbacksPerTenant;
+  const size_t noisy_callbacks_per_tenant =
+      params.scale_noisy_with_tenants
+          ? std::max<size_t>(200, (total_wb_callbacks * 4) / std::max<size_t>(1, params.num_noisy))
+          : 200;
 
   auto start_time = std::chrono::steady_clock::now();
   for (auto _ : state) { // NOLINT: Silences warning about dead store
@@ -162,7 +167,7 @@ void runDispatcherBenchmark(::benchmark::State& state, const BenchmarkParams& pa
     // they sit at the front of post_callbacks_ and create contention.
     for (size_t i = 0; i < params.num_noisy; ++i) {
       dispatcher->pushTrackedObject(noisy_scopes[i].get());
-      for (size_t c = 0; c < NoisyCallbacksPerTenant; ++c) {
+      for (size_t c = 0; c < noisy_callbacks_per_tenant; ++c) {
         auto t_post = std::chrono::steady_clock::now();
         dispatcher->post([t_post, &noisy_collector, &params]() {
           auto t_exec = std::chrono::steady_clock::now();
@@ -191,7 +196,7 @@ void runDispatcherBenchmark(::benchmark::State& state, const BenchmarkParams& pa
 
     const size_t target_callbacks = wb_collector.count() + noisy_collector.count() +
                                     (params.num_well_behaved * WbCallbacksPerTenant) +
-                                    (params.num_noisy * NoisyCallbacksPerTenant);
+                                    (params.num_noisy * noisy_callbacks_per_tenant);
     // Run dispatcher non-blocking until all queued callbacks execute.
     while (wb_collector.count() + noisy_collector.count() < target_callbacks) {
       dispatcher->run(Dispatcher::RunType::NonBlock);
@@ -227,11 +232,12 @@ void BM_TenantScaling(::benchmark::State& state) {
   params.quantum = 10;
   params.work_duration_us = 10;
   params.enable_drr = (state.range(1) == 1);
+  params.scale_noisy_with_tenants = true;
   runDispatcherBenchmark(state, params);
 }
 
 static void configureTenantScaling(::benchmark::internal::Benchmark* b) {
-  for (int num_tenants : {2, 4, 8, 16, 32, 64}) {
+  for (int num_tenants : {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096}) {
     b->Args({num_tenants, 0});
     b->Args({num_tenants, 1});
   }
@@ -249,7 +255,7 @@ void BM_NoisyNeighborScaling(::benchmark::State& state) {
 }
 
 static void configureNoisyNeighborScaling(::benchmark::internal::Benchmark* b) {
-  for (int num_noisy : {1, 2, 4, 8}) {
+  for (int num_noisy : {1, 2, 4, 8, 16, 32, 64, 128}) {
     b->Args({num_noisy, 0});
     b->Args({num_noisy, 1});
   }
