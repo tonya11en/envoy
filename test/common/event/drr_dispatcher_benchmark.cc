@@ -30,13 +30,14 @@
  *
  * WHAT WE EXPECT TO SEE
  * ---------------------
- * 1. Under Legacy FIFO (`/0`), a flooding noisy neighbor blocks well-behaved tenants. Well-behaved
+ * 1. Under Legacy FIFO (`/0`), because the noisy neighbor enqueues its burst first, well-behaved
  *    tenants experience high queuing latency (`wb_p50_us` and `wb_p99_us` in the milliseconds
- * range) because their callbacks sit behind the entire noisy burst.
+ *    range). In tenant scaling sweeps (`BM_TenantScaling`), where the noisy neighbor maintains a
+ *    constant 80% ratio of total operations, FIFO queuing latency degrades linearly with scale.
  * 2. Under DRR (`/1`), the dispatcher time-slices execution across tenant queues in round-robin
  *    order. Well-behaved tenants experience orders-of-magnitude lower queuing latency (typically 7x
  *    to 10x lower `wb_p50_us` and `wb_p99_us`) because DRR services their brief queues immediately
- * on the first pass.
+ *    on the first pass, protecting them regardless of total scale or noisy neighbor backlog.
  */
 
 #include <algorithm>
@@ -156,6 +157,9 @@ void runDispatcherBenchmark(::benchmark::State& state, const BenchmarkParams& pa
 
   constexpr size_t WbCallbacksPerTenant = 10;
   const size_t total_wb_callbacks = params.num_well_behaved * WbCallbacksPerTenant;
+  // When scale_noisy_with_tenants is enabled, scale the noisy neighbor's callback flood
+  // to 4x the aggregate well-behaved callback count (maintaining an 80% operation ratio).
+  // Otherwise, default to a fixed 200-callback flood per noisy neighbor.
   const size_t noisy_callbacks_per_tenant =
       params.scale_noisy_with_tenants
           ? std::max<size_t>(200, (total_wb_callbacks * 4) / std::max<size_t>(1, params.num_noisy))
@@ -225,6 +229,9 @@ void runDispatcherBenchmark(::benchmark::State& state, const BenchmarkParams& pa
   state.SetItemsProcessed(static_cast<int64_t>(wb_collector.count() + noisy_collector.count()));
 }
 
+// Evaluates well-behaved tenant scaling (2..4096 tenants) under contention from 1 noisy neighbor.
+// The noisy neighbor scales its callback flood proportionally (scale_noisy_with_tenants = true)
+// to maintain a constant 80% ratio of total operations across all tenant counts.
 void BM_TenantScaling(::benchmark::State& state) {
   BenchmarkParams params;
   params.num_well_behaved = state.range(0);
@@ -244,6 +251,8 @@ static void configureTenantScaling(::benchmark::internal::Benchmark* b) {
 }
 BENCHMARK(BM_TenantScaling)->Apply(configureTenantScaling);
 
+// Evaluates noisy neighbor scaling (1..128 noisy neighbors) against 10 well-behaved tenants.
+// Each noisy neighbor enqueues a fixed flood of 200 callbacks per iteration.
 void BM_NoisyNeighborScaling(::benchmark::State& state) {
   BenchmarkParams params;
   params.num_well_behaved = 10;
@@ -262,6 +271,8 @@ static void configureNoisyNeighborScaling(::benchmark::internal::Benchmark* b) {
 }
 BENCHMARK(BM_NoisyNeighborScaling)->Apply(configureNoisyNeighborScaling);
 
+// Evaluates sensitivity to DRR quantum size (1..50 cost units) with 10 well-behaved tenants
+// and 1 noisy neighbor enqueuing 200 callbacks per iteration.
 void BM_QuantumSensitivity(::benchmark::State& state) {
   BenchmarkParams params;
   params.num_well_behaved = 10;
@@ -280,6 +291,8 @@ static void configureQuantumSensitivity(::benchmark::internal::Benchmark* b) {
 }
 BENCHMARK(BM_QuantumSensitivity)->Apply(configureQuantumSensitivity);
 
+// Evaluates CPU-intensive callback durations (50..1000 µs) with 10 well-behaved tenants
+// and 1 noisy neighbor enqueuing 200 callbacks per iteration.
 void BM_HeavyWorkload(::benchmark::State& state) {
   BenchmarkParams params;
   params.num_well_behaved = 10;
