@@ -691,7 +691,8 @@ EXTENSIONS = {
     #
     # Queue policy
     #
-    "envoy.queue_policy.fifo":   "//source/extensions/queue_policy/fifo:fifo_queue_policy_impl",
+    "envoy.queue_policy.fair_queue": "//source/extensions/queue_policy/fair_queue:fair_queue_policy_lib",
+    "envoy.queue_policy.fifo":       "//source/extensions/queue_policy/fifo:fifo_queue_policy_impl",
 }
 
 # These can be changed to ["//visibility:public"], for  downstream builds which

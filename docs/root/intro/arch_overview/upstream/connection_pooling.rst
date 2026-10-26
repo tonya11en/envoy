@@ -152,3 +152,28 @@ If Envoy is configured for either active or passive :ref:`health checking
 that transitions from an available state to an unavailable state. If the host reenters the load
 balancing rotation it will create fresh connections which will maximize the chance of working
 around a bad flow (due to ECMP route or something else).
+
+.. _arch_overview_conn_pool_queue_policies:
+
+Pending request queuing policies
+--------------------------------
+
+When no upstream connection is immediately available to serve a request, the connection pool places
+the request into a pending request queue up to the cluster's
+:ref:`max_pending_requests <envoy_v3_api_field_config.cluster.v3.CircuitBreakers.Thresholds.max_pending_requests>`
+circuit breaker limit. By default, pending requests are dequeued in FIFO (first-in, first-out)
+order as connections become ready.
+
+Clusters can customize how pending requests are ordered and dequeued via
+:ref:`queuing_policies <envoy_v3_api_field_config.cluster.v3.Cluster.queuing_policies>`:
+
+* :ref:`FIFO queue policy <envoy_v3_api_msg_extensions.queue_policy.fifo.v3.FifoQueuePolicyConfig>`
+  (``envoy.queue_policy.fifo``): Dequeues pending requests in arrival order.
+* :ref:`Fair queue policy <envoy_v3_api_msg_extensions.queue_policy.fair_queue.v3.FairQueuePolicyConfig>`
+  (``envoy.queue_policy.fair_queue``): Uses Stochastic Fair Queuing (SFQ) to isolate tenant or
+  request classes identified by a dynamic metadata key (such as metadata populated by the
+  :ref:`Header-To-Metadata filter <config_http_filters_header_to_metadata>`). Requests are hashed
+  into per-bucket FIFO queues and serviced in round-robin order across active buckets, with periodic
+  hash seed perturbation to prevent persistent hash collisions between tenants. Requests without a
+  class metadata value are mapped to a single shared default class.
+

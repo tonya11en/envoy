@@ -1,0 +1,101 @@
+# Declarative configuration for the Envoy Queue Policy Benchmark Suite.
+# This file defines the upstream bottleneck, the queue policies to compare,
+# and the synthetic HTTP clients (including per-client headers and burst timing).
+
+duration_sec: 30
+sample_interval_sec: 0.5
+
+envoy:
+  listener_port: 10000
+  admin_port: 9901
+  concurrency: 1
+
+upstream:
+  port: 10001
+  # Capping max_connections on HTTP/1.1 with a fixed 10ms backend delay creates
+  # a deterministic 400 RPS upstream capacity (4 connections * 100 RPS/conn).
+  max_connections: 4
+  max_pending_requests: 10000
+  max_requests: 10000
+  static_delay: 0.010s
+  response_body_size: 64
+
+# List of Cluster.queuing_policies.pending_rq_policy configurations to test.
+policies:
+- id: no_queue
+  label: "Default (No Queue Policy)"
+
+- id: fifo
+  label: "FIFO Extension"
+  queuing_policy:
+    name: envoy.queue_policy.fifo
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.queue_policy.fifo.v3.FifoQueuePolicyConfig
+
+- id: fair_queue
+  label: "Fair Queue Extension (SFQ)"
+  queuing_policy:
+    name: envoy.queue_policy.fair_queue
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.queue_policy.fair_queue.v3.FairQueuePolicyConfig
+      class_metadata_key:
+        key: envoy.filters.http.header_to_metadata
+        path:
+        - key: client_id
+      num_buckets: 1024
+      perturbation_interval: 1s
+
+# Synthetic HTTP clients. Each client runs as a separate nighthawk_client instance
+# sending its configured headers to the shared Envoy listener.
+clients:
+- id: wb1
+  label: "Client 1 (Steady)"
+  role: well_behaved
+  color: "#1b4f72"
+  rps: 60
+  connections: 60
+  concurrency: 1
+  start_delay_sec: 0
+  duration_sec: 30
+  headers:
+  - "x-client-id: wb1"
+  - "x-tenant-tier: standard"
+
+- id: wb2
+  label: "Client 2 (Steady)"
+  role: well_behaved
+  color: "#2874a6"
+  rps: 60
+  connections: 60
+  concurrency: 1
+  start_delay_sec: 0
+  duration_sec: 30
+  headers:
+  - "x-client-id: wb2"
+  - "x-tenant-tier: standard"
+
+- id: wb3
+  label: "Client 3 (Steady)"
+  role: well_behaved
+  color: "#5dade2"
+  rps: 60
+  connections: 60
+  concurrency: 1
+  start_delay_sec: 0
+  duration_sec: 30
+  headers:
+  - "x-client-id: wb3"
+  - "x-tenant-tier: standard"
+
+- id: noisy
+  label: "Noisy Neighbor (Burst)"
+  role: noisy
+  color: "#d62728"
+  rps: 500
+  connections: 120
+  concurrency: 1
+  start_delay_sec: 10
+  duration_sec: 15
+  headers:
+  - "x-client-id: noisy"
+  - "x-tenant-tier: bulk"
